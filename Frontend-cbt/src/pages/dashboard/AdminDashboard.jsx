@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../api/axiosConfig'; // Pastikan path ini benar!
+import api from '../../api/axiosConfig'; // ✅ Menggunakan "Satpam" Axios
 import { 
   Users, ClipboardList, CheckSquare, AlertTriangle, LogIn, LogOut 
 } from 'lucide-react';
@@ -14,12 +14,12 @@ const AdminDashboard = ({ socket }) => {
   // 1. STATE TOKEN
   const [tokens, setTokens] = useState({ masuk: '------', keluar: '------' });
 
-  // 2. STATE STATISTIK (Disesuaikan dengan permintaan baru)
+  // 2. STATE STATISTIK
   const [stats, setStats] = useState({
     totalSiswa: 0,
     ujianAktif: 0,
-    submitHariIni: 0, // Pengganti Rata-rata Nilai
-    pelanggaran: 0    // Pengganti Mata Pelajaran
+    submitHariIni: 0, 
+    pelanggaran: 0    
   });
 
   // 3. STATE GRAFIK
@@ -29,6 +29,7 @@ const AdminDashboard = ({ socket }) => {
   // FUNGSI TARIK SEMUA DATA AWAL DARI BACKEND
   const fetchDashboardData = async () => {
     try {
+      // ✅ Request menggunakan axios instance (api), tidak perlu kirim header manual
       const resToken = await api.get('/api/admin/tokens'); 
       if (resToken.data) {
         setTokens({ masuk: resToken.data.token_masuk, keluar: resToken.data.token_keluar });
@@ -39,8 +40,8 @@ const AdminDashboard = ({ socket }) => {
         setStats({
           totalSiswa: resDashboard.data.total_siswa || 0,
           ujianAktif: resDashboard.data.ujian_aktif || 0,
-          submitHariIni: resDashboard.data.submit_hari_ini || 0, // Pastikan backend ngirim key ini
-          pelanggaran: resDashboard.data.pelanggaran_siswa || 0  // Pastikan backend ngirim key ini
+          submitHariIni: resDashboard.data.submit_hari_ini || 0, 
+          pelanggaran: resDashboard.data.pelanggaran_siswa || 0  
         });
         if (resDashboard.data.grafik_nilai) setDataNilai(resDashboard.data.grafik_nilai);
         if (resDashboard.data.grafik_ujian) setDataUjian(resDashboard.data.grafik_ujian);
@@ -54,43 +55,43 @@ const AdminDashboard = ({ socket }) => {
     // 1. Tarik data saat halaman pertama kali dimuat
     fetchDashboardData();
 
+    // Pastikan socket tersedia sebelum memasang listener
     if (!socket) return;
 
-    // 2. SOCKET LISTENER: Update Token (Dari Cron Job)
+    // 💡 PENYESUAIAN SOCKET: Bersihkan listener lama sebelum memasang yang baru
+    // Ini mencegah event tereksekusi berkali-kali jika komponen re-render
+    socket.off('token:update');
+    socket.off('dashboard:update');
+
+    // 2. SOCKET LISTENER: Update Token (Tanpa Room)
     socket.on('token:update', (data) => { 
       setTokens({ masuk: data.token_masuk, keluar: data.token_keluar });
     });
 
-    // 3. SOCKET LISTENER: Update Dashboard Real-time (Siswa Submit / Pelanggaran / Dll)
-    // Pastikan backend Mas Brow memancarkan io.emit('dashboard:update', dataTerbaru) 
+    // 3. SOCKET LISTENER: Update Dashboard Real-time
     socket.on('dashboard:update', (dataTerbaru) => {
       console.log("Menerima update dashboard real-time!", dataTerbaru);
       
-      // Update Stats Card
       if(dataTerbaru.stats) {
         setStats(prev => ({ ...prev, ...dataTerbaru.stats }));
       }
-      
-      // Update Grafik Bar (Average Scores)
       if(dataTerbaru.grafik_nilai) setDataNilai(dataTerbaru.grafik_nilai);
-      
-      // Update Grafik Pie (Exam Completion)
       if(dataTerbaru.grafik_ujian) setDataUjian(dataTerbaru.grafik_ujian);
     });
 
-    // Cleanup saat pindah halaman
+    // Cleanup saat pindah halaman/komponen di-unmount
     return () => {
       socket.off('token:update');
       socket.off('dashboard:update');
     };
-  }, [socket]);
+  }, [socket]); // Menjadikan socket sebagai dependency
 
   // Persentase ujian selesai untuk Pie Chart Center Text
   const totalSiswaUjian = dataUjian.reduce((acc, curr) => acc + curr.value, 0);
   const siswaSelesai = dataUjian.find(d => d.name === 'Selesai' || d.name === 'Finished')?.value || 0;
   const persentaseSelesai = totalSiswaUjian > 0 ? Math.round((siswaSelesai / totalSiswaUjian) * 100) : 0;
 
-  // Render Custom Legend Pie Chart agar mirip gambar
+  // Render Custom Legend Pie Chart
   const renderColorfulLegendText = (value, entry) => {
     const { color } = entry;
     let label = value;
@@ -128,10 +129,10 @@ const AdminDashboard = ({ socket }) => {
         </div>
       </div>
 
-      {/* --- 4 KARTU STATISTIK (STYLE MIRIP IMAGE_09F7E5) --- */}
+      {/* --- 4 KARTU STATISTIK --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         
-        {/* 1. Card Total Siswa (Blue Theme with Mini Bars) */}
+        {/* 1. Card Total Siswa */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <div>
@@ -142,7 +143,6 @@ const AdminDashboard = ({ socket }) => {
               <Users size={20} strokeWidth={2.5} />
             </div>
           </div>
-          {/* Ornamen Mini Bars */}
           <div className="mt-5 flex items-end gap-1.5 h-6">
             <div className="w-full bg-blue-200/60 h-[20%] rounded-t-sm"></div>
             <div className="w-full bg-blue-300/60 h-[40%] rounded-t-sm"></div>
@@ -153,7 +153,7 @@ const AdminDashboard = ({ socket }) => {
           </div>
         </div>
 
-        {/* 2. Card Ujian Aktif (Green Theme with Mini Bars) */}
+        {/* 2. Card Ujian Aktif */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <div>
@@ -164,7 +164,6 @@ const AdminDashboard = ({ socket }) => {
               <ClipboardList size={20} strokeWidth={2.5} />
             </div>
           </div>
-          {/* Ornamen Mini Bars */}
           <div className="mt-5 flex items-end gap-1.5 h-6">
             <div className="w-full bg-emerald-300/60 h-[30%] rounded-t-sm"></div>
             <div className="w-full bg-emerald-400/70 h-[50%] rounded-t-sm"></div>
@@ -175,7 +174,7 @@ const AdminDashboard = ({ socket }) => {
           </div>
         </div>
 
-        {/* 3. Card Submit Hari Ini (Progress Bar Theme) */}
+        {/* 3. Card Submit Hari Ini */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <div>
@@ -186,7 +185,6 @@ const AdminDashboard = ({ socket }) => {
               <CheckSquare size={20} strokeWidth={2.5} />
             </div>
           </div>
-          {/* Ornamen Progress Bar */}
           <div className="mt-6">
             <div className="flex justify-between items-center mb-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase">Progress</span>
@@ -198,7 +196,7 @@ const AdminDashboard = ({ socket }) => {
           </div>
         </div>
 
-        {/* 4. Card Pelanggaran Siswa (Red Theme, Progress Bar) */}
+        {/* 4. Card Pelanggaran Siswa */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <div>
@@ -209,7 +207,6 @@ const AdminDashboard = ({ socket }) => {
               <AlertTriangle size={20} strokeWidth={2.5} />
             </div>
           </div>
-          {/* Ornamen Progress Bar Merah */}
           <div className="mt-6">
             <div className="flex justify-between items-center mb-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase">Warning Level</span>
@@ -236,12 +233,10 @@ const AdminDashboard = ({ socket }) => {
             {dataNilai.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dataNilai} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  {/* Grid hanya horizontal, warna pudar */}
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="mapel" axisLine={false} tickLine={false} tick={{fill: '#475569', fontSize: 12, fontWeight: 600}} dy={10} />
                   <YAxis axisLine={false} tickLine={false} tick={{fill: '#475569', fontSize: 12}} />
                   <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                  {/* Bar warna biru tua pekat sesuai gambar */}
                   <Bar dataKey="nilai" fill="#1e3a8a" radius={[2, 2, 0, 0]} barSize={35} />
                 </BarChart>
               </ResponsiveContainer>
@@ -254,18 +249,13 @@ const AdminDashboard = ({ socket }) => {
         {/* PieChart (Exam Completion Donut) */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
           <h3 className="text-lg font-bold text-slate-800 mb-2">Exam Completion</h3>
-          
-          {/* PERBAIKAN 1: Ganti min-h-70 menjadi min-h-[300px] agar wadahnya cukup tinggi */}
-          <div className="flex-1 w-full flex flex-col justify-center items-center relative min-h-75">
+          <div className="flex-1 w-full flex flex-col justify-center items-center relative min-h-[300px]">
             {dataUjian.length > 0 ? (
               <>
-                {/* PERBAIKAN 2: Sesuaikan posisi "top" teks agar persis di tengah Donut (top-[42%]) */}
                 <div className="absolute flex flex-col items-center justify-center top-[42%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
                   <span className="text-3xl font-black text-slate-800">{persentaseSelesai}%</span>
                   <span className="text-xs font-bold text-slate-600 mt-1">Finished</span>
                 </div>
-                
-                {/* PERBAIKAN 3: Tambah height dan margin agar legend tidak mepet */}
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart margin={{ top: 10, right: 10, bottom: 20, left: 10 }}>
                     <Pie 
@@ -278,11 +268,10 @@ const AdminDashboard = ({ socket }) => {
                       cx="50%"
                       cy="45%"
                     >
-                      {/* Mapping warna */}
                       {dataUjian.map((entry, index) => {
-                        let barColor = '#e2e8f0'; // Default gray untuk Not Started
-                        if(entry.name === 'Selesai' || entry.name === 'Finished') barColor = '#047857'; // Hijau tua
-                        if(entry.name === 'Proses' || entry.name === 'In Progress') barColor = '#1e3a8a'; // Biru tua
+                        let barColor = '#e2e8f0'; 
+                        if(entry.name === 'Selesai' || entry.name === 'Finished') barColor = '#047857'; 
+                        if(entry.name === 'Proses' || entry.name === 'In Progress') barColor = '#1e3a8a'; 
                         
                         return <Cell key={`cell-${index}`} fill={entry.color || barColor} />;
                       })}

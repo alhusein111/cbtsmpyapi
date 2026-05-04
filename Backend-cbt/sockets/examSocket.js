@@ -1,3 +1,4 @@
+// Backend-cbt/sockets/examSocket.js
 const db = require('../config/db');
 
 const examSocketHandler = (io) => {
@@ -7,7 +8,6 @@ const examSocketHandler = (io) => {
         // ==========================================
         // 1. COMMAND CENTER (ADMIN & GURU)
         // ==========================================
-        
         socket.on('staff:join', (data) => {
             socket.join('staff_room');
             console.log(`👨‍🏫 Staff (Admin/Guru) bergabung ke Command Center`);
@@ -17,11 +17,19 @@ const examSocketHandler = (io) => {
             const { siswa_id } = data;
             try {
                 await db.query('UPDATE users_siswa SET is_locked = 0 WHERE id = ?', [siswa_id]);
-                await db.query('INSERT INTO exam_logs (siswa_id, event, detail) VALUES (?, ?, ?)', 
+                await db.query('INSERT INTO exam_logs (siswa_id, event, detail, created_at) VALUES (?, ?, ?, NOW())', 
                     [siswa_id, 'UNLOCKED', 'Akses dibuka kembali oleh Pengawas']);
                 
                 io.to(`student_${siswa_id}`).emit('student:unlocked', { message: 'Akses ujianmu telah dibuka oleh Pengawas.' });
-                io.to('staff_room').emit('staff:update_status', { siswa_id, status_kunci: 'AMAN' });
+                
+                // Beri tahu dashboard Guru bahwa siswa sudah di-unlock (Silent Update)
+                io.to('staff_room').emit('staff:peserta_update', { siswa_id, is_locked: 0 });
+                io.to('staff_room').emit('staff:log_new', { 
+                    type: 'UNLOCKED', 
+                    text: 'Akses dibuka kembali oleh Pengawas', 
+                    siswa_id, 
+                    time: new Date() 
+                });
             } catch (error) {
                 console.error('❌ Error admin:unlock:', error);
             }
@@ -33,25 +41,33 @@ const examSocketHandler = (io) => {
             console.log(`⚠️ Siswa ${siswa_id} di-force logout oleh pengawas.`);
         });
 
-
         // ==========================================
         // 2. EVENT DARI SISWA (AKTIVITAS & ANTI-CHEAT)
         // ==========================================
-
         socket.on('student:join', (data) => {
             const { siswa_id } = data;
             socket.join(`student_${siswa_id}`);
         });
 
+        // Event saat siswa menjawab soal atau pindah soal
         socket.on('student:activity', async (data) => {
-            const { siswa_id, exam_id, subject_name, detail } = data;
+            const { siswa_id, exam_id, subject_name, detail, action, total_terjawab } = data;
             try {
-                await db.query('INSERT INTO exam_logs (siswa_id, exam_id, event, detail) VALUES (?, ?, ?, ?)', 
+                // Simpan log ke DB
+                await db.query('INSERT INTO exam_logs (siswa_id, exam_id, event, detail, created_at) VALUES (?, ?, ?, ?, NOW())', 
                     [siswa_id, exam_id, 'ACTIVITY', detail]);
                 
-                io.to('staff_room').emit('exam:status', {
-                    siswa_id,
-                    pesan: `[${subject_name}] ${detail}`
+                // Silent Update ke Dashboard Guru
+                io.to('staff_room').emit('staff:peserta_update', { 
+                    siswa_id, 
+                    terjawab: total_terjawab // Frontend akan update progress bar berdasar ini
+                });
+
+                io.to('staff_room').emit('staff:log_new', { 
+                    type: 'ACTIVITY', 
+                    text: detail, 
+                    siswa_id, 
+                    time: new Date() 
                 });
             } catch (error) {
                 console.error('❌ Error catat log activity:', error);
@@ -62,16 +78,20 @@ const examSocketHandler = (io) => {
             const { siswa_id, exam_id, violation_type } = data;
             try {
                 await db.query('UPDATE users_siswa SET is_locked = 1 WHERE id = ?', [siswa_id]);
-                await db.query('INSERT INTO exam_logs (siswa_id, exam_id, event, detail) VALUES (?, ?, ?, ?)', 
+                await db.query('INSERT INTO exam_logs (siswa_id, exam_id, event, detail, created_at) VALUES (?, ?, ?, ?, NOW())', 
                     [siswa_id, exam_id, 'VIOLATION', `Kecurangan terdeteksi: ${violation_type}`]);
                 
                 io.to(`student_${siswa_id}`).emit('student:locked_out', { 
                     message: 'Kecurangan terdeteksi! Ujian dikunci. Lapor ke pengawas.' 
                 });
 
-                io.to('staff_room').emit('staff:violation_alert', {
-                    siswa_id,
-                    pesan: `🚨 PELANGGARAN! Siswa melakukan: ${violation_type}. Layar telah dikunci.`
+                // Silent Update: Ubah status siswa jadi merah/terkunci seketika
+                io.to('staff_room').emit('staff:peserta_update', { siswa_id, is_locked: 1 });
+                io.to('staff_room').emit('staff:log_new', { 
+                    type: 'VIOLATION', 
+                    text: `Kecurangan terdeteksi: ${violation_type}`, 
+                    siswa_id, 
+                    time: new Date() 
                 });
             } catch (error) {
                 console.error('❌ Error proses pelanggaran:', error);

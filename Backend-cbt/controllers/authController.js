@@ -79,7 +79,7 @@ const loginSiswa = async (req, res) => {
         );
 
         // LOGGER: Catat aktivitas Login berhasil
-        await insertExamLog(siswa.id, null, 'APP_LOGIN', 'Siswa berhasil login ke aplikasi');
+        await insertExamLog(siswa.id, null, 'APP_LOGIN', 'Berhasil login ke aplikasi');
 
         res.status(200).json({
             success: true,
@@ -110,7 +110,7 @@ const logoutProses = async (req, res) => {
 
         // Hanya proses log & reset device untuk siswa
         if (role === 'siswa') {
-            await insertExamLog(userId, null, 'APP_LOGOUT', 'Siswa keluar (logout) dari aplikasi');
+            await insertExamLog(userId, null, 'APP_LOGOUT', 'Keluar (logout) dari aplikasi');
             await db.query('UPDATE users_siswa SET is_login = 0, device_id = NULL WHERE id = ?', [userId]);
         }
 
