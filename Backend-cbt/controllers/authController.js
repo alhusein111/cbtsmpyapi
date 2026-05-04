@@ -70,6 +70,7 @@ const loginSiswa = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Akun sedang digunakan di perangkat lain!' });
         }
 
+        // SET is_login = 1
         await db.query('UPDATE users_siswa SET is_login = 1, device_id = ? WHERE id = ?', [device_id, siswa.id]);
 
         const token = jwt.sign(
@@ -78,8 +79,14 @@ const loginSiswa = async (req, res) => {
             { expiresIn: '4h' }
         );
 
-        // LOGGER: Catat aktivitas Login berhasil
         await insertExamLog(siswa.id, null, 'APP_LOGIN', 'Berhasil login ke aplikasi');
+
+        // TRIGGER SOCKET.IO: Beritahu Admin bahwa Siswa berstatus "Login"
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('peserta:update', { id: siswa.id, status: 'Login' });
+            io.emit('stats:refresh'); // Trigger Frontend Admin untuk tarik data dashboard terbaru
+        }
 
         res.status(200).json({
             success: true,
@@ -102,16 +109,22 @@ const loginSiswa = async (req, res) => {
     }
 };
 
-// 2. FUNGSI LOGOUT (Mereset is_login dan mencatat logger)
 const logoutProses = async (req, res) => {
     try {
         const userId = req.user.id;
         const role = req.user.role;
 
-        // Hanya proses log & reset device untuk siswa
         if (role === 'siswa') {
             await insertExamLog(userId, null, 'APP_LOGOUT', 'Keluar (logout) dari aplikasi');
+            // SET is_login = 0
             await db.query('UPDATE users_siswa SET is_login = 0, device_id = NULL WHERE id = ?', [userId]);
+
+            // TRIGGER SOCKET.IO: Kembalikan status ke "Belum Login"
+            const io = req.app.get('io');
+            if (io) {
+                io.emit('peserta:update', { id: userId, status: 'Belum Login' });
+                io.emit('stats:refresh'); 
+            }
         }
 
         res.status(200).json({ success: true, message: 'Logout berhasil, sesi dihapus dari server.' });

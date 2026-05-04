@@ -1,3 +1,4 @@
+const { getDashboardStats } = require('../utils/statsHelper');
 const db = require('../config/db');
 // 1. IMPORT LOGGER DI SINI
 const { insertExamLog } = require('../utils/logger'); 
@@ -371,39 +372,11 @@ const getNavigasiSoal = async (req, res) => {
 // ============================================================================
 const getUpdatedDashboardData = async (connection) => {
     try {
-        // 1. Ambil 4 Statistik Utama
-        const [stats] = await connection.query(`
-            SELECT 
-                (SELECT COUNT(*) FROM users WHERE role = 'siswa') AS total_siswa,
-                (SELECT COUNT(*) FROM student_exams WHERE status = 'Mengerjakan') AS ujian_aktif,
-                (SELECT COUNT(*) FROM student_exams WHERE status = 'Selesai' AND DATE(waktu_selesai_pengerjaan) = CURDATE()) AS submit_hari_ini,
-                (SELECT COUNT(*) FROM exam_logs WHERE log_type = 'VIOLATION_BLUR') AS pelanggaran_siswa
-        `);
-
-        // 2. Ambil Data Pie Chart (Exam Completion)
-        const [pieData] = await connection.query(`
-            SELECT status, COUNT(*) AS value 
-            FROM student_exams 
-            GROUP BY status
-        `);
-
-        const formattedPie = [
-            { name: 'Selesai', value: pieData.find(d => d.status === 'Selesai')?.value || 0 },
-            { name: 'Proses', value: pieData.find(d => d.status === 'Mengerjakan')?.value || 0 },
-            { name: 'Belum', value: pieData.find(d => !['Selesai', 'Mengerjakan'].includes(d.status))?.value || 0 }
-        ];
-
-        return {
-            stats: {
-                totalSiswa: stats[0].total_siswa,
-                ujianAktif: stats[0].ujian_aktif,
-                submitHariIni: stats[0].submit_hari_ini,
-                pelanggaran: stats[0].pelanggaran_siswa
-            },
-            grafik_ujian: formattedPie
-        };
+        // ✅ Cukup panggil Helper, terus lempar kembaliannya! Mantap!
+        const dashboardData = await getDashboardStats(connection);
+        return dashboardData; 
     } catch (error) {
-        console.error("Gagal menarik data socket:", error);
+        console.error("❌ Gagal menarik data socket:", error);
         return null;
     }
 };
@@ -533,13 +506,38 @@ const selesaiUjian = async (req, res) => {
         await insertExamLog(siswaId, examSession[0].exam_id, 'EXAM_FINISH', keterangan || defaultKeterangan);
 
         // ===============================================================
-        // 📡 SOCKET.IO TRIGGER: UPDATE DASHBOARD ADMIN (UJIAN SELESAI)
+        // 📡 SOCKET.IO TRIGGER: UPDATE DASHBOARD & SILENT UPDATE 
         // ===============================================================
         const io = req.app.get('io');
         if (io) {
             const dashboardData = await getUpdatedDashboardData(connection);
             if (dashboardData) {
+                // Emit massal buat komponen yg masih pakai format lama
                 io.emit('dashboard:update', dashboardData);
+                
+                // Emit SILENT UPDATE (Spesifik per komponen di LiveMonitoring.jsx)
+                io.emit('stats:update', dashboardData.stats);
+                
+                // Silent update card siswa jadi "Selesai"
+                io.emit('peserta:update', {
+                    id: siswaId.toString(),
+                    status: 'Selesai',
+                    progress: 100,
+                    sisaWaktu: '-'
+                });
+
+                // Cari nama siswa dulu ke database (Asumsi menggunakan 'db.query' dan tabel 'users_siswa')
+                const [siswa] = await db.query('SELECT nama FROM users_siswa WHERE id = ?', [siswaId]);
+                const namaSiswa = siswa.length > 0 ? siswa[0].nama : `Siswa (ID: ${siswaId})`;
+
+                // Tambah log aktivitas siswa selesai
+                const timeNow = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+                io.emit('log:new', {
+                    id: Date.now(),
+                    type: 'success',
+                    text: `${namaSiswa} telah menyelesaikan ujian.`,
+                    time: timeNow
+                });
             }
         }
 
@@ -597,6 +595,26 @@ const lockSesiUjian = async (req, res) => {
                 const dashboardData = await getUpdatedDashboardData(connection);
                 if (dashboardData) {
                     io.emit('dashboard:update', dashboardData);
+                    io.emit('stats:update', dashboardData.stats); // Silent update angka pelanggaran
+
+                    // Silent update card siswa jadi "Terputus" (Terkunci)
+                    io.emit('peserta:update', {
+                        id: siswaId.toString(),
+                        status: 'Terputus' 
+                    });
+
+                    // Cari nama siswa dulu ke database
+                    const [siswaTarget] = await db.query('SELECT nama FROM users_siswa WHERE id = ?', [siswaId]);
+                    const namaPelanggar = siswaTarget.length > 0 ? siswaTarget[0].nama : `Siswa (ID: ${siswaId})`;
+
+                    // Trigger alert log pelanggaran
+                    const timeNow = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+                    io.emit('log:new', {
+                        id: Date.now(),
+                        type: 'error',
+                        text: `Pelanggaran: Sistem mengunci ujian ${namaPelanggar} karena berpindah tab atau keluar fullscreen.`,
+                        time: timeNow
+                    });
                 }
             }
         }

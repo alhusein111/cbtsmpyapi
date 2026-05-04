@@ -28,28 +28,36 @@ const AdminDashboard = ({ socket }) => {
 
   // FUNGSI TARIK SEMUA DATA AWAL DARI BACKEND
   const fetchDashboardData = async () => {
-    try {
-      // ✅ Request menggunakan axios instance (api), tidak perlu kirim header manual
-      const resToken = await api.get('/api/admin/tokens'); 
-      if (resToken.data) {
-        setTokens({ masuk: resToken.data.token_masuk, keluar: resToken.data.token_keluar });
-      }
-
-      const resDashboard = await api.get('/api/admin/dashboard');
-      if (resDashboard.data) {
-        setStats({
-          totalSiswa: resDashboard.data.total_siswa || 0,
-          ujianAktif: resDashboard.data.ujian_aktif || 0,
-          submitHariIni: resDashboard.data.submit_hari_ini || 0, 
-          pelanggaran: resDashboard.data.pelanggaran_siswa || 0  
-        });
-        if (resDashboard.data.grafik_nilai) setDataNilai(resDashboard.data.grafik_nilai);
-        if (resDashboard.data.grafik_ujian) setDataUjian(resDashboard.data.grafik_ujian);
-      }
-    } catch (error) {
-      console.error('Gagal mengambil data dashboard:', error);
+  try {
+    // 1. Ambil Token
+    const resToken = await api.get('/api/admin/tokens'); 
+    if (resToken.data) {
+      setTokens({ masuk: resToken.data.token_masuk, keluar: resToken.data.token_keluar });
     }
-  };
+
+    // 2. Ambil Data Dashboard
+    const resDashboard = await api.get('/api/admin/dashboard');
+    
+    if (resDashboard.data && resDashboard.data.success) {
+      // ✅ AMBIL DARI resDashboard.data.stats (karena sekarang dibungkus objek stats)
+      const { stats } = resDashboard.data;
+
+      setStats({
+        // Sesuaikan dengan nama key yang dikirim oleh statsHelper.js
+        totalSiswa: stats.siswaLogin || 0,
+        ujianAktif: stats.ujianAktif || 0,
+        submitHariIni: stats.submitHariIni || 0, 
+        pelanggaran: stats.pelanggaran || 0  // ✅ Sekarang sudah sinkron
+      });
+
+      // Update Grafik
+      if (resDashboard.data.grafik_nilai) setDataNilai(resDashboard.data.grafik_nilai);
+      if (resDashboard.data.grafik_ujian) setDataUjian(resDashboard.data.grafik_ujian);
+    }
+  } catch (error) {
+    console.error('Gagal mengambil data dashboard:', error);
+  }
+};
 
   useEffect(() => {
     // 1. Tarik data saat halaman pertama kali dimuat

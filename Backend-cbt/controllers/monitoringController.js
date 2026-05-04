@@ -28,7 +28,7 @@ const getLivePeserta = async (req, res) => {
     try {
         connection = await db.getConnection();
         
-        // Menggunakan tabel users_siswa, student_exams, dan menghitung student_answers
+        // PERBAIKAN: Gunakan CASE WHEN agar urutan prioritas status tepat sasaran!
         const query = `
             SELECT 
                 s.id as siswa_id, 
@@ -36,14 +36,24 @@ const getLivePeserta = async (req, res) => {
                 s.nis,
                 s.is_login,
                 s.is_locked,
-                se.status as exam_status, 
+                CASE 
+                    WHEN se.status = 'Terkunci' OR s.is_locked = 1 THEN 'Terkunci'
+                    WHEN se.status = 'Selesai' THEN 'Selesai'
+                    WHEN se.status = 'Mengerjakan' THEN 'Mengerjakan'
+                    WHEN s.is_login = 1 THEN 'Login'
+                    ELSE 'Belum Login'
+                END as exam_status,
                 se.waktu_mulai_pengerjaan,
                 (SELECT COUNT(id) FROM student_answers sa WHERE sa.student_exam_id = se.id AND (sa.opsi_id IS NOT NULL OR sa.jawaban_matching IS NOT NULL)) as terjawab
-            FROM student_exams se
-            JOIN users_siswa s ON se.siswa_id = s.id
-            WHERE se.exam_id = ?
+            FROM users_siswa s
+            LEFT JOIN student_exams se ON s.id = se.siswa_id AND se.exam_id = ?
+            WHERE s.class_id IN (SELECT class_id FROM exam_classes WHERE exam_id = ?)
         `;
-        const [peserta] = await connection.query(query, [exam_id]);
+        
+        // Catatan: Saya ubah LEFT JOIN dari users_siswa. Agar peserta yang belum klik 
+        // "Mulai Ujian" (belum ada row di student_exams) tetap tampil dengan status "Belum Login / Login".
+        
+        const [peserta] = await connection.query(query, [exam_id, exam_id]);
         res.json({ success: true, data: peserta });
     } catch (error) {
         console.error('❌ Error fetch live peserta:', error);

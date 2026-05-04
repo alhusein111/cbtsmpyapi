@@ -1,3 +1,4 @@
+const { getDashboardStats } = require('../utils/statsHelper');
 const db = require('../config/db');
 
 // --- API PENAMPIL TOKEN (Task 3) ---
@@ -13,28 +14,47 @@ const getCurrentTokens = async (req, res) => {
     }
 };
 
-// --- FITUR RESET / RESUME (Task 2 - Tombol Darurat) ---
+// --- FITUR RESET / RESUME: Implementasi Buka Kunci ---
 const resetSiswaUjian = async (req, res) => {
     const { student_exam_id } = req.body; 
 
     try {
-        const [result] = await db.query(
+        // 1. Cari ID siswa berdasarkan ujian yang terkunci
+        const [examRows] = await db.query('SELECT siswa_id FROM student_exams WHERE id = ?', [student_exam_id]);
+        
+        if (examRows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Data ujian tidak ditemukan.' });
+        }
+
+        const siswaId = examRows[0].siswa_id;
+
+        // 2. Buka Kunci & Paksa Logout (Agar siswa bisa Login ulang)
+        await db.query(
+            'UPDATE users_siswa SET is_locked = 0, is_login = 0, device_id = NULL WHERE id = ?', 
+            [siswaId]
+        );
+
+        // 3. Reset Status Ujian jadi 'Login' (Standby)
+        await db.query(
             `UPDATE student_exams 
-             SET status = 'Mengerjakan', 
-                 waktu_selesai_pengerjaan = NULL, 
-                 nilai_akhir = NULL, 
-                 receipt_code = NULL 
+             SET status = 'Login' 
              WHERE id = ?`, 
             [student_exam_id]
         );
 
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ success: false, message: 'Data ujian tidak ditemukan.' });
+        // 4. Trigger Socket ke Frontend
+        const io = req.app.get('io');
+        if (io) {
+            // Beritahu device siswa yang terkunci untuk force logout/refresh
+            io.emit(`force_logout:${siswaId}`); 
+            // Update UI Admin
+            io.emit('peserta:update', { id: siswaId, status: 'Belum Login' });
+            io.emit('stats:refresh');
         }
 
         res.json({ 
             success: true, 
-            message: 'Status ujian siswa berhasil di-reset. Siswa bisa melanjutkan kembali.' 
+            message: 'Status ujian berhasil di-reset. Kunci dibuka, siswa silahkan login kembali.' 
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -42,33 +62,13 @@ const resetSiswaUjian = async (req, res) => {
 };
 
 
-// --- API DASHBOARD ADMIN / GURU (Disesuaikan dengan Frontend Baru) ---
+// --- API DASHBOARD ADMIN ---
 const getDashboardAdmin = async (req, res) => {
     try {
-        // 1. Ambil 4 Statistik Utama
-        const [stats] = await db.query(`
-            SELECT 
-                (SELECT COUNT(*) FROM users_siswa) AS total_siswa,
-                (SELECT COUNT(*) FROM student_exams WHERE status = 'Mengerjakan') AS ujian_aktif,
-                (SELECT COUNT(*) FROM student_exams WHERE status = 'Selesai' AND DATE(waktu_selesai_pengerjaan) = CURDATE()) AS submit_hari_ini,
-                (SELECT COUNT(*) FROM exam_logs WHERE event = 'VIOLATION_BLUR') AS pelanggaran_siswa
-        `);
+        // ✅ 1. Panggil Helper Statistik
+        const dashboardData = await getDashboardStats(db);
 
-        // 2. Ambil Data Pie Chart (Exam Completion)
-        const [pieData] = await db.query(`
-            SELECT status, COUNT(*) AS value 
-            FROM student_exams 
-            GROUP BY status
-        `);
-
-        const formattedPie = [
-            { name: 'Selesai', value: pieData.find(d => d.status === 'Selesai')?.value || 0 },
-            { name: 'Proses', value: pieData.find(d => d.status === 'Mengerjakan')?.value || 0 },
-            { name: 'Belum', value: pieData.find(d => !['Selesai', 'Mengerjakan'].includes(d.status))?.value || 0 }
-        ];
-
-        // 3. Ambil Data Bar Chart (Average Scores)
-        // Pastikan tabel subjects, exams, dan student_exams sesuai dengan struktur DB Mas Brow
+        // ✅ 2. Query tambahan khusus halaman ini (Grafik Batang Nilai)
         const [barData] = await db.query(`
             SELECT m.nama_mapel AS mapel, ROUND(IFNULL(AVG(se.nilai_akhir), 0), 2) AS nilai
             FROM student_exams se
@@ -78,14 +78,10 @@ const getDashboardAdmin = async (req, res) => {
             GROUP BY m.id
         `);
 
-        // 4. Kirim Data dengan format JSON yang diminta Frontend
         res.json({
             success: true,
-            total_siswa: stats[0].total_siswa || 0,
-            ujian_aktif: stats[0].ujian_aktif || 0,
-            submit_hari_ini: stats[0].submit_hari_ini || 0,
-            pelanggaran_siswa: stats[0].pelanggaran_siswa || 0,
-            grafik_ujian: formattedPie,
+            stats: dashboardData.stats,
+            grafik_ujian: dashboardData.grafik_ujian,
             grafik_nilai: barData.length > 0 ? barData : []
         });
 

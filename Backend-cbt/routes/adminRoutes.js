@@ -1,3 +1,5 @@
+const { getDashboardStats } = require('../utils/statsHelper');
+const db = require('../config/db'); 
 const express = require('express');
 const router = express.Router();
 
@@ -7,7 +9,6 @@ const router = express.Router();
 const adminCtrl = require('../controllers/adminExamController');
 const analysisCtrl = require('../controllers/analysisController');
 const monitoringController = require('../controllers/monitoringController');
-const db = require('../config/db'); 
 
 // ==========================================
 // 2. IMPORT MIDDLEWARE (SATPAM)
@@ -37,63 +38,58 @@ router.get('/monitoring/log/:exam_id/:siswa_id', checkRole('admin'), monitoringC
 // ✅ [DATA REAL] ENDPOINT UNTUK LIVE MONITORING
 router.get('/monitoring', async (req, res) => {
     try {
-        // 1. AMBIL STATISTIK
-        const [
-            [totalSiswaResult],
-            [ujianAktifResult],
-            [submitHariIniResult],
-            [pelanggaranResult]
-        ] = await Promise.all([
-            db.query('SELECT COUNT(*) AS total FROM users_siswa'), 
-            db.query('SELECT COUNT(*) AS aktif FROM student_exams WHERE status = "Mengerjakan"'), 
-            db.query('SELECT COUNT(*) AS selesai FROM student_exams WHERE status = "Selesai" AND DATE(waktu_selesai_pengerjaan) = CURDATE()'),
-            db.query('SELECT COUNT(*) AS melanggar FROM exam_logs WHERE event = "VIOLATION" OR event = "warning" OR event = "error"') 
-        ]);
+        // ✅ 1. AMBIL STATISTIK DARI HELPER
+        const dashboardData = await getDashboardStats(db);
 
-        // 2. AMBIL DATA PESERTA UJIAN (Tambahan: s.id AS siswa_id dan s.is_locked untuk SOCKET)
+        // 2. AMBIL DATA PESERTA 
         const [pesertaRows] = await db.query(`
             SELECT 
                 s.nis AS id, 
-                s.id AS siswa_id, 
+                s.id AS siswa_id,
+                se.id AS student_exam_id, 
                 s.nama, 
-                s.is_locked,
-                e.status, 
+                CASE 
+                    WHEN se.status = 'Terkunci' THEN 'Terkunci'
+                    WHEN se.status = 'Selesai' THEN 'Selesai'
+                    WHEN se.status = 'Mengerjakan' THEN 'Mengerjakan'
+                    WHEN se.status = 'Login' OR s.is_login = 1 THEN 'Login'
+                    ELSE 'Belum Login'
+                END as status,
                 0 AS progress, 
                 '00:00' AS sisaWaktu, 
                 0 AS terjawab, 
                 0 AS totalSoal,
                 '00:00' AS idleTime
-            FROM student_exams e
-            JOIN users_siswa s ON e.siswa_id = s.id
-            ORDER BY e.waktu_mulai_pengerjaan DESC
+            FROM users_siswa s
+            LEFT JOIN student_exams se ON s.id = se.siswa_id
+            WHERE s.is_login = 1 OR se.id IS NOT NULL
+            ORDER BY se.waktu_mulai_pengerjaan DESC, s.nama ASC
         `);
 
-        // 3. AMBIL LOG AKTIVITAS TERBARU (JOIN users_siswa untuk memunculkan NAMA di Log Awal)
+        // 3. AMBIL LOG AKTIVITAS 
         const [logRows] = await db.query(`
             SELECT 
-                l.id, 
-                l.event AS type, 
-                CONCAT(s.nama, ' ', l.detail) AS text, 
-                DATE_FORMAT(l.created_at, '%H:%i') AS time 
-            FROM exam_logs l
-            LEFT JOIN users_siswa s ON l.siswa_id = s.id
-            ORDER BY l.created_at DESC 
-            LIMIT 10
+                id, 
+                CASE 
+                    WHEN event = 'EXAM_FINISH' THEN 'success'
+                    WHEN event = 'VIOLATION_BLUR' THEN 'error'
+                    WHEN event = 'APP_LOGIN' THEN 'start'
+                    WHEN event = 'APP_LOGOUT' THEN 'warning'
+                    ELSE 'info'
+                END AS type, 
+                detail AS text, 
+                DATE_FORMAT(created_at, '%H:%i') AS time 
+            FROM exam_logs 
+            ORDER BY created_at DESC 
+            LIMIT 20
         `);
 
-        // 4. TRAFFIC AKTIVITAS (Sementara dummy)
         const trafficData = [10, 20, 45, 80, 95, 60, 30, 15, 5];
 
-        // 5. GABUNGKAN & KIRIM DATA KE FRONTEND
         res.status(200).json({
             success: true,
             data: {
-                stats: { 
-                    totalSiswa: totalSiswaResult[0].total || 0, 
-                    ujianAktif: ujianAktifResult[0].aktif || 0, 
-                    submitHariIni: submitHariIniResult[0].selesai || 0, 
-                    pelanggaran: pelanggaranResult[0].melanggar || 0 
-                },
+                stats: dashboardData.stats, // ✅ Ambil hasil dari helper
                 peserta: pesertaRows,
                 logs: logRows,
                 traffic: trafficData
