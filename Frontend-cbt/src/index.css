@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  /* --- PALET WARNA UTAMA (BIRU YAPI) --- */
+  --color-primary: #1e3a8a; /* Biru gelap khas YAPI */
+  --color-primary-container: #dbeafe;
+  --color-on-primary: #ffffff;
+  
+  /* --- PALET WARNA LATAR (SURFACE) --- */
+  --color-surface: #f8fafc;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container: #f1f5f9;
+  --color-surface-container-highest: #e2e8f0;
+  
+  /* --- PALET WARNA TEKS --- */
+  --color-on-surface: #0f172a;
+  --color-on-surface-variant: #64748b;
+  --color-outline-variant: #cbd5e1;
+
+  /* --- PALET WARNA ERROR (UNTUK TOMBOL LOGOUT) --- */
+  --color-error: #dc2626; /* Merah menyala */
+  --color-error-container: #fee2e2;
+  --color-on-error: #ffffff;
+}
+
+/* Base styles untuk memastikan background body mengikuti warna surface */
+@layer base {
+  body {
+    @apply bg-surface text-on-surface;
+  }
+}
