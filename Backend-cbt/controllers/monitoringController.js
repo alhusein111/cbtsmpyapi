@@ -28,10 +28,11 @@ const getLivePeserta = async (req, res) => {
     try {
         connection = await db.getConnection();
         
-        // PERBAIKAN: Gunakan CASE WHEN agar urutan prioritas status tepat sasaran!
+        // PERBAIKAN: Tambah student_exam_id & Filter Siswa yang selesai kemarin
         const query = `
             SELECT 
                 s.id as siswa_id, 
+                se.id as student_exam_id, -- 🔥 SAYA TAMBAH INI: Agar tombol Buka Kunci di frontend bisa bekerja
                 s.nama, 
                 s.nis,
                 s.is_login,
@@ -48,10 +49,12 @@ const getLivePeserta = async (req, res) => {
             FROM users_siswa s
             LEFT JOIN student_exams se ON s.id = se.siswa_id AND se.exam_id = ?
             WHERE s.class_id IN (SELECT class_id FROM exam_classes WHERE exam_id = ?)
+            
+            -- 🔥 TAMBAHAN LOGIKA FILTER DI SINI 🔥
+            -- Artinya: Tampilkan jika belum ada data (NULL), atau statusnya BUKAN Selesai, 
+            -- ATAU jika statusnya Selesai tapi waktu pengerjaannya HARI INI (CURDATE)
+            AND (se.status IS NULL OR se.status != 'Selesai' OR DATE(se.waktu_selesai_pengerjaan) = CURDATE())
         `;
-        
-        // Catatan: Saya ubah LEFT JOIN dari users_siswa. Agar peserta yang belum klik 
-        // "Mulai Ujian" (belum ada row di student_exams) tetap tampil dengan status "Belum Login / Login".
         
         const [peserta] = await connection.query(query, [exam_id, exam_id]);
         res.json({ success: true, data: peserta });

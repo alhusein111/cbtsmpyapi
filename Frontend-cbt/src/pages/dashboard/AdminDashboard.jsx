@@ -257,7 +257,7 @@ const AdminDashboard = ({ socket }) => {
         {/* PieChart (Exam Completion Donut) */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
           <h3 className="text-lg font-bold text-slate-800 mb-2">Exam Completion</h3>
-          <div className="flex-1 w-full flex flex-col justify-center items-center relative min-h-[300px]">
+          <div className="flex-1 w-full flex flex-col justify-center items-center relative min-h-75">
             {dataUjian.length > 0 ? (
               <>
                 <div className="absolute flex flex-col items-center justify-center top-[42%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">

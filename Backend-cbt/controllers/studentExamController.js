@@ -83,8 +83,8 @@ const mulaiUjian = async (req, res) => {
             let sisaWaktu = durasiTotalDetik - selisihDetik;
             if (sisaWaktu < 0) sisaWaktu = 0;
 
-            // LOGGER: Melanjutkan Ujian
-            await insertExamLog(siswaId, exam_id, 'EXAM_RESUME', 'Siswa kembali masuk (melanjutkan) pengerjaan ujian');
+            // 🔥 LOGGER FIX: Tambahkan nama siswa
+            await insertExamLog(siswaId, exam_id, 'EXAM_RESUME', `${siswa.nama_siswa} kembali masuk (melanjutkan) pengerjaan ujian`);
 
             return res.json({ 
                 success: true, 
@@ -127,8 +127,8 @@ const mulaiUjian = async (req, res) => {
 
         await connection.commit();
         
-        // LOGGER: Mulai Ujian Baru
-        await insertExamLog(siswaId, exam_id, 'EXAM_START', 'Siswa memulai pengerjaan ujian');
+        // 🔥 LOGGER FIX: Tambahkan nama siswa
+        await insertExamLog(siswaId, exam_id, 'EXAM_START', `${siswa.nama_siswa} memulai pengerjaan ujian`);
 
         return res.json({ 
             success: true, 
@@ -372,7 +372,6 @@ const getNavigasiSoal = async (req, res) => {
 // ============================================================================
 const getUpdatedDashboardData = async (connection) => {
     try {
-        // ✅ Cukup panggil Helper, terus lempar kembaliannya! Mantap!
         const dashboardData = await getDashboardStats(connection);
         return dashboardData; 
     } catch (error) {
@@ -501,8 +500,11 @@ const selesaiUjian = async (req, res) => {
 
         await connection.commit();
 
-        // LOGGER: Selesai Ujian
-        const defaultKeterangan = token_keluar_input === 'FORCE_SUBMIT' ? 'Waktu Habis / Force Submit' : 'Selesai Normal';
+        // 🔥 LOGGER FIX: Ambil nama siswa untuk log
+        const [siswa] = await connection.query('SELECT nama FROM users_siswa WHERE id = ?', [siswaId]);
+        const namaSiswa = siswa.length > 0 ? siswa[0].nama : `Siswa`;
+
+        const defaultKeterangan = token_keluar_input === 'FORCE_SUBMIT' ? `${namaSiswa} mengalami Waktu Habis / Force Submit` : `${namaSiswa} menyelesaikan ujian secara normal`;
         await insertExamLog(siswaId, examSession[0].exam_id, 'EXAM_FINISH', keterangan || defaultKeterangan);
 
         // ===============================================================
@@ -525,10 +527,6 @@ const selesaiUjian = async (req, res) => {
                     progress: 100,
                     sisaWaktu: '-'
                 });
-
-                // Cari nama siswa dulu ke database (Asumsi menggunakan 'db.query' dan tabel 'users_siswa')
-                const [siswa] = await db.query('SELECT nama FROM users_siswa WHERE id = ?', [siswaId]);
-                const namaSiswa = siswa.length > 0 ? siswa[0].nama : `Siswa (ID: ${siswaId})`;
 
                 // Tambah log aktivitas siswa selesai
                 const timeNow = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
@@ -579,12 +577,15 @@ const lockSesiUjian = async (req, res) => {
                 [student_exam_id]
             );
 
-            // LOGGER: Pelanggaran (Kunci Ujian)
+            // 🔥 LOGGER FIX: Cari nama siswa dulu sebelum nge-log
+            const [siswaTarget] = await connection.query('SELECT nama FROM users_siswa WHERE id = ?', [siswaId]);
+            const namaSiswa = siswaTarget.length > 0 ? siswaTarget[0].nama : `Siswa`;
+
             await insertExamLog(
                 siswaId, 
                 examSession[0].exam_id, 
                 'VIOLATION_BLUR', 
-                'Sistem mengunci ujian karena siswa terdeteksi berpindah tab atau keluar fullscreen.'
+                `Sistem mengunci ujian karena ${namaSiswa} terdeteksi berpindah tab atau keluar fullscreen.`
             );
 
             // ===============================================================
@@ -603,16 +604,12 @@ const lockSesiUjian = async (req, res) => {
                         status: 'Terputus' 
                     });
 
-                    // Cari nama siswa dulu ke database
-                    const [siswaTarget] = await db.query('SELECT nama FROM users_siswa WHERE id = ?', [siswaId]);
-                    const namaPelanggar = siswaTarget.length > 0 ? siswaTarget[0].nama : `Siswa (ID: ${siswaId})`;
-
                     // Trigger alert log pelanggaran
                     const timeNow = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
                     io.emit('log:new', {
                         id: Date.now(),
                         type: 'error',
-                        text: `Pelanggaran: Sistem mengunci ujian ${namaPelanggar} karena berpindah tab atau keluar fullscreen.`,
+                        text: `Pelanggaran: Sistem mengunci ujian ${namaSiswa} karena berpindah tab atau keluar fullscreen.`,
                         time: timeNow
                     });
                 }

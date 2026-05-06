@@ -6,6 +6,8 @@ import {
   RefreshCcw, Eye, ArrowRightCircle, CheckCircle2, Unlock
 } from 'lucide-react';
 
+import Swal from 'sweetalert2';
+
 const LiveMonitoring = ({ socket, examId = 1 }) => { 
   const [viewMode, setViewMode] = useState('grid');
   const [isLoading, setIsLoading] = useState(true);
@@ -78,21 +80,34 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
   const handleAksiPeserta = async (studentExamId, siswaId, actionType) => {
   try {
     if (actionType === 'buka-kunci') {
-      // ✅ Perbaikan: Sesuaikan endpoint dengan yang ada di adminRoutes.js
       await api.post('/api/admin/exams/reset-siswa', { student_exam_id: studentExamId });
-    } else {
+      fetchMonitoringData();
+    } 
+    else if (actionType === 'reset-login') {
+      // ✅ Tambahkan konfirmasi khusus untuk Reset Login/Device
+      const konfirmasi = await Swal.fire({
+        title: 'Reset Device?',
+        text: 'Ini akan menghapus sesi perangkat siswa. Siswa harus login ulang dari awal. Lanjutkan?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Ya, Reset!'
+      });
+
+      if (konfirmasi.isConfirmed) {
+        await api.post('/api/admin/peserta/reset-login', { id: siswaId });
+        fetchMonitoringData();
+        Swal.fire('Berhasil!', 'Device siswa berhasil di-reset.', 'success');
+      }
+    } 
+    else {
+      // Untuk aksi lain (jika ada)
       await api.post(`/api/admin/peserta/${actionType}`, { id: siswaId });
+      fetchMonitoringData();
     }
-    
-    // Refresh data setelah aksi berhasil
-    fetchMonitoringData();
-
-    // (Opsional) Tambahkan notifikasi sukses jika pakai SweetAlert
-    Swal.fire('Berhasil!', `Aksi ${actionType} sukses dilakukan.`, 'success');
-
   } catch (error) {
     console.error(`❌ Gagal: ${actionType}`, error);
-    // (Opsional) Tambahkan notifikasi error jika pakai SweetAlert
     Swal.fire('Gagal!', `Terjadi kesalahan saat memproses ${actionType}.`, 'error');
   }
 };

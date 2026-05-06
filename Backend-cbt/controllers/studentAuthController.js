@@ -5,7 +5,7 @@ const loginSiswa = async (req, res) => {
     // 1. Tangkap device_id dari request body
     const { nis, no_peserta, token_masuk, device_id } = req.body;
 
-    // 2. Validasi input wajib (Sekarang device_id juga wajib)
+    // 2. Validasi input wajib
     if (!nis || !no_peserta || !token_masuk || !device_id) {
         return res.status(400).json({ success: false, message: 'NIS, No. Peserta, Token Masuk, dan Device ID wajib diisi!' });
     }
@@ -38,19 +38,14 @@ const loginSiswa = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Akun Anda TERKUNCI karena indikasi pelanggaran. Silakan lapor ke Pengawas!' });
         }
 
-        // ==========================================
-        // LOGIC BARU: ANTI-DOUBLE LOGIN + DEVICE ID
-        // ==========================================
+        // ANTI-DOUBLE LOGIN + DEVICE ID
         if (siswa.is_login === 1) {
-            // Jika statusnya lagi login, cek apakah device_id-nya beda?
-            // (Kita pakai optional chaining `?` dan string cast buat jaga-jaga kalau datanya null)
             if (siswa.device_id && String(siswa.device_id) !== String(device_id)) {
                 return res.status(403).json({ 
                     success: false, 
                     message: 'Akun Anda sedang login di perangkat lain! Silakan logout dulu.' 
                 });
             }
-            // Kalau device_id SAMA, biarkan lanjut (kasus relogin karena HP restart/force close)
         }
 
         // UPDATE STATUS LOGIN SISWA & SIMPAN DEVICE ID-NYA
@@ -58,6 +53,26 @@ const loginSiswa = async (req, res) => {
             'UPDATE users_siswa SET is_login = 1, device_id = ? WHERE id = ?', 
             [device_id, siswa.id]
         );
+
+        // ✅ LOGIC BARU: CATAT LOG LOGIN DENGAN NAMA SISWA
+        const logText = `[${siswa.nama}] Berhasil login ke portal`;
+        await connection.query(
+            'INSERT INTO exam_logs (siswa_id, event, detail, created_at) VALUES (?, ?, ?, NOW())',
+            [siswa.id, 'LOGIN', logText]
+        );
+
+        // ✅ TRIGGER SOCKET KE PENGAWAS
+        const io = req.app.get('io');
+        if (io) {
+            io.to('staff_room').emit('staff:log_new', {
+                type: 'LOGIN',
+                text: logText,
+                siswa_id: siswa.id,
+                time: new Date()
+            });
+            // Update UI peserta di dashboard admin (opsional untuk indikator online)
+            io.to('staff_room').emit('staff:peserta_update', { id: siswa.id, is_login: 1 });
+        }
 
         // GENERATE JWT TOKEN
         const token = jwt.sign(
@@ -81,18 +96,39 @@ const loginSiswa = async (req, res) => {
     }
 };
 
-// ... kode loginSiswa di atas ...
-
 const logoutSiswa = async (req, res) => {
-    // Karena API ini butuh Token JWT, kita bisa ambil ID siswa yang sedang login dari req.user
+    // Ambil ID siswa yang sedang login dari req.user (di-set oleh middleware auth)
     const siswaId = req.user.id;
 
     try {
-        // Reset is_login jadi 0 dan kosongkan kembali device_id-nya
+        // ✅ 1. Ambil nama siswa untuk ditulis di log
+        const [siswaData] = await db.query('SELECT nama FROM users_siswa WHERE id = ?', [siswaId]);
+        const namaSiswa = siswaData.length > 0 ? siswaData[0].nama : 'Siswa Anonim';
+        const logText = `[${namaSiswa}] Berhasil logout dari portal`;
+
+        // ✅ 2. Reset is_login jadi 0 dan kosongkan kembali device_id-nya
         await db.query(
             'UPDATE users_siswa SET is_login = 0, device_id = NULL WHERE id = ?',
             [siswaId]
         );
+
+        // ✅ 3. Simpan riwayat logout ke exam_logs
+        await db.query(
+            'INSERT INTO exam_logs (siswa_id, event, detail, created_at) VALUES (?, ?, ?, NOW())',
+            [siswaId, 'LOGOUT', logText]
+        );
+
+        // ✅ 4. Trigger Socket ke Pengawas bahwa siswa ini sudah logout
+        const io = req.app.get('io');
+        if (io) {
+            io.to('staff_room').emit('staff:log_new', {
+                type: 'LOGOUT',
+                text: logText,
+                siswa_id: siswaId,
+                time: new Date()
+            });
+            io.to('staff_room').emit('staff:peserta_update', { id: siswaId, is_login: 0 });
+        }
 
         res.json({ success: true, message: 'Berhasil Logout! Anda bisa login kembali dari perangkat mana saja.' });
     } catch (error) {
@@ -101,5 +137,4 @@ const logoutSiswa = async (req, res) => {
     }
 };
 
-// Jangan lupa export fungsi barunya!
 module.exports = { loginSiswa, logoutSiswa };

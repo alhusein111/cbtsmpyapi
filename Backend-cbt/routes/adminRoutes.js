@@ -31,6 +31,7 @@ router.use(verifyToken, checkRole('admin', 'guru'));
 
 router.get('/dashboard', adminCtrl.getDashboardAdmin);
 router.post('/exams/reset-siswa', adminCtrl.resetSiswaUjian);
+router.post('/peserta/reset-login', adminCtrl.resetLoginDevice);
 
 // Endpoint Log Siswa
 router.get('/monitoring/log/:exam_id/:siswa_id', checkRole('admin'), monitoringController.getSiswaLogs);
