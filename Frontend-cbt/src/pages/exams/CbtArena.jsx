@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Clock, AlertTriangle, LogOut, Map, CheckCircle2, ChevronLeft, ChevronRight, Play, Info } from 'lucide-react';
 import api from '../../api/axiosConfig'; // Sesuaikan path axios Anda
 import { toast } from 'sonner';
+import Swal from 'sweetalert2'; // TAMBAHAN: Import SweetAlert2
 
 // === HELPER FUNCTIONS ===
 const stripHtml = (html) => {
@@ -18,7 +19,7 @@ const fixHTMLContent = (htmlString) => {
   if (!htmlString) return '';
   
   // Sesuaikan URL ini dengan port/host Backend Anda!
-  const backendUrl = 'http://localhost:5000'; 
+  const backendUrl = 'http://11.11.4.41:5000'; 
   
   // Asumsi folder penyimpanan gambar Anda di backend adalah 'uploads'
   return htmlString.replace(/src="\/uploads/g, `src="${backendUrl}/uploads/soal`);
@@ -73,8 +74,16 @@ const CbtArena = () => {
   useEffect(() => {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     if (isMobile) {
-      alert("⚠️ PERINGATAN: Harap gunakan Aplikasi Mobile CBT untuk mengerjakan ujian di HP!");
-      navigate('/login', { replace: true });
+      // PERBAIKAN: Ganti alert dengan SweetAlert2
+      Swal.fire({
+        icon: 'warning',
+        title: 'PERINGATAN',
+        text: 'Harap gunakan Aplikasi Mobile CBT untuk mengerjakan ujian di HP!',
+        confirmButtonText: 'Mengerti',
+        allowOutsideClick: false
+      }).then(() => {
+        navigate('/login', { replace: true });
+      });
     }
   }, [navigate]);
 
@@ -144,33 +153,54 @@ const CbtArena = () => {
     }
   };
 
-  // === USEEFFECT KEAMANAN (DIPERBARUI) ===
+// === USEEFFECT KEAMANAN (DIPERBARUI - CELAH MODAL DITUTUP) ===
   useEffect(() => {
-    if (isInLobby || isLocked) return; 
+    if (isInLobby || isLocked || isSubmitting) return; 
 
     const handlePelanggaran = async () => {
       setIsLocked(true); // Cegah trigger berkali-kali
       
+      // 💡 TAMBAHAN: Fungsi kecil untuk memaksa keluar dari fullscreen
+      const forceExitFullscreen = async () => {
+        try {
+          if (document.fullscreenElement) {
+            await document.exitFullscreen();
+          }
+        } catch (err) {
+          console.warn("Abaikan error exit fullscreen:", err);
+        }
+      };
+
       try {
-          // Ambil token untuk auth header. Sesuaikan key 'token' jika di localStorage Anda namanya beda.
           const token = localStorage.getItem('token'); 
-          
           await api.post('/api/student/exam/lock-ujian', 
               { student_exam_id: studentExamId },
-              {
-                  headers: {
-                      'Authorization': `Bearer ${token}` 
-                  }
-              }
+              { headers: { 'Authorization': `Bearer ${token}` } }
           );
 
-          alert("🚫 PELANGGARAN TERDETEKSI! Anda terdeteksi meminimize browser atau pindah tab. Ujian Anda telah dikunci oleh sistem. Silakan lapor Pengawas!");
-          navigate('/login', { replace: true }); 
+          Swal.fire({
+            icon: 'error',
+            title: '🚫 PELANGGARAN TERDETEKSI!',
+            text: 'Anda terdeteksi meminimize browser atau pindah tab. Ujian Anda telah dikunci oleh sistem. Silakan lapor Pengawas!',
+            confirmButtonText: 'Keluar',
+            allowOutsideClick: false
+          }).then(async () => {
+            await forceExitFullscreen(); // 💡 KELUARKAN FULLSCREEN SEBELUM PINDAH RUTE
+            navigate('/login', { replace: true }); 
+          });
 
       } catch (error) {
           console.error("Gagal mengunci ujian:", error);
-          alert("Terjadi pelanggaran. Anda dikeluarkan dari mode ujian secara paksa.");
-          navigate('/login', { replace: true }); 
+          Swal.fire({
+            icon: 'error',
+            title: 'Pelanggaran',
+            text: 'Terjadi pelanggaran. Anda dikeluarkan dari mode ujian secara paksa.',
+            confirmButtonText: 'Keluar',
+            allowOutsideClick: false
+          }).then(async () => {
+            await forceExitFullscreen(); // 💡 KELUARKAN FULLSCREEN SEBELUM PINDAH RUTE
+            navigate('/login', { replace: true }); 
+          });
       }
     };
 
@@ -189,22 +219,21 @@ const CbtArena = () => {
       }
     };
 
+    // 💡 PERBAIKAN: Hapus !showModalSelesai dari ketiga sensor di bawah ini!
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && !showModalSelesai && !timeOutMode) {
+      if (!document.fullscreenElement && !timeOutMode && !isSubmitting) {
         handlePelanggaran();
       }
     };
 
-    // Deteksi Tab Pindah
     const handleVisibilityChange = () => {
-      if (document.hidden && !showModalSelesai && !timeOutMode) {
+      if (document.hidden && !timeOutMode && !isSubmitting) {
         handlePelanggaran();
       }
     };
 
-    // Deteksi Aplikasi Minimize / Alt+Tab
     const handleBlur = () => {
-      if (!showModalSelesai && !timeOutMode) {
+      if (!timeOutMode && !isSubmitting) {
         handlePelanggaran();
       }
     };
@@ -222,7 +251,7 @@ const CbtArena = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [isInLobby, showModalSelesai, timeOutMode, navigate, studentExamId, isLocked]);
+  }, [isInLobby, timeOutMode, navigate, studentExamId, isLocked, isSubmitting]); // 💡 PERBAIKAN: Hapus showModalSelesai dari dependency array
 
   // === USEEFFECT LOAD SOAL ===
   useEffect(() => {
@@ -444,7 +473,11 @@ const CbtArena = () => {
     } catch (fsError) {
       console.warn("Abaikan error exit fullscreen:", fsError);
     }
-    setShowModalSelesai(false);
+    
+    // PERBAIKAN 6: Komentari atau hapus baris ini!
+    // Membiarkannya terbuka menjamin aman sampai pindah rute.
+    // setShowModalSelesai(false); 
+    
     navigate('/dashboard', { replace: true });
   };
 
@@ -578,7 +611,7 @@ const CbtArena = () => {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row max-w-350 mx-auto w-full p-4 md:p-6 gap-6 flex-1 h-full">
+      <div className="flex flex-col lg:flex-row max-w-[1400px] mx-auto w-full p-4 md:p-6 gap-6 flex-1 h-full">
         <div className="flex-1 flex flex-col gap-6">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
             
@@ -599,7 +632,6 @@ const CbtArena = () => {
                 </div>
               ) : (
                 <>
-                  {/* HAPUS class 'prose max-w-none' biar ngga di-hijack oleh Tailwind Typography */}
                   <div className="mb-8 text-slate-800 text-lg md:text-xl leading-relaxed w-full min-w-0 flex flex-col">
                     
                     {/* --- JURUS PAMUNGKAS DI CBT ARENA --- */}
@@ -730,16 +762,13 @@ const CbtArena = () => {
                             </div>
                             
                             {/* Pembungkus Teks & Gambar Opsi */}
-                            {/* PERBAIKAN 1: Tambahkan min-w-0 di sini agar flex tidak memanjang tak terbatas */}
                             <div className="text-base md:text-lg text-slate-700 leading-snug flex w-full min-w-0">
                               <span className="font-black mr-2 text-slate-900 shrink-0">{String.fromCharCode(65 + idx)}.</span> 
                               
-                              {/* PERBAIKAN 2: Tambahkan min-w-0 di sini juga */}
                               <div className="w-full flex flex-col gap-2 min-w-0 overflow-hidden">
                                 {/* 1. Tampilkan Teks Opsi (jika ada) */}
                                 {opsi.teks_opsi && (
                                   <div 
-                                    /* PALU GODAM UNTUK OPSI */
                                     className="w-full overflow-x-auto wrap-break-word whitespace-normal **:whitespace-normal! **:max-w-full! [&>p]:m-0 [&_img]:max-w-full! [&_img]:h-auto [&_img]:my-2 [&_img]:rounded-md" 
                                     dangerouslySetInnerHTML={{ __html: fixHTMLContent(opsi.teks_opsi) }} 
                                   />
@@ -831,7 +860,6 @@ const CbtArena = () => {
               })}
             </div>
 
-            {/* FIX: MIN WAKTU PENGERJAAN DALAM DETIK */}
             {waktuBerjalan >= minWorkTime ? (
               <button 
                 onClick={() => setShowModalSelesai(true)}
@@ -842,7 +870,6 @@ const CbtArena = () => {
             ) : (
               <div className="w-full mt-8 bg-slate-50 border border-slate-200 p-4 rounded-xl text-center">
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Selesai Ujian Terkunci</p>
-                {/* Pastikan kamu punya fungsi formatTime() di atas komponen untuk mengubah detik jadi MM:SS */}
                 <p className="text-sm font-medium text-slate-700">Terbuka dalam {formatTime(minWorkTime - waktuBerjalan)}</p>
               </div>
             )}

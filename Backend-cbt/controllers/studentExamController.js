@@ -75,6 +75,15 @@ const mulaiUjian = async (req, res) => {
                 });
             }
             
+            // ==========================================
+            // FIX 1: UPDATE STATUS KEMBALI KE 'Mengerjakan' 
+            // ==========================================
+            await connection.query(
+                'UPDATE student_exams SET status = "Mengerjakan" WHERE id = ?',
+                [existing[0].id]
+            );
+            // ==========================================
+            
             const waktuMulaiDB = new Date(existing[0].waktu_mulai_pengerjaan);
             const waktuSekarang = new Date();
             const selisihDetik = Math.floor((waktuSekarang - waktuMulaiDB) / 1000); 
@@ -83,7 +92,6 @@ const mulaiUjian = async (req, res) => {
             let sisaWaktu = durasiTotalDetik - selisihDetik;
             if (sisaWaktu < 0) sisaWaktu = 0;
 
-            // 🔥 LOGGER FIX: Tambahkan nama siswa
             await insertExamLog(siswaId, exam_id, 'EXAM_RESUME', `${siswa.nama_siswa} kembali masuk (melanjutkan) pengerjaan ujian`);
 
             return res.json({ 
@@ -127,7 +135,6 @@ const mulaiUjian = async (req, res) => {
 
         await connection.commit();
         
-        // 🔥 LOGGER FIX: Tambahkan nama siswa
         await insertExamLog(siswaId, exam_id, 'EXAM_START', `${siswa.nama_siswa} memulai pengerjaan ujian`);
 
         return res.json({ 
@@ -261,7 +268,6 @@ const getSoalByNomor = async (req, res) => {
 };
 
 const saveJawaban = async (req, res) => {
-    // (Kode ini dibiarkan sama seperti aslinya, tidak butuh log per simpan jawaban)
     const siswaId = req.user.id;
     const { student_exam_id, question_id, opsi_id, jawaban_matching, is_doubt } = req.body;
 
@@ -301,6 +307,25 @@ const saveJawaban = async (req, res) => {
             `UPDATE student_exams SET last_question_id = ? WHERE id = ?`,
             [question_id, student_exam_id]
         );
+
+        // === TAMBAHAN POINT A: Hitung total terjawab & Trigger Socket ===
+        // Hitung jawaban yang sudah diisi (opsi_id / jawaban_matching tidak null)
+        const [countData] = await connection.query(
+            `SELECT COUNT(id) as total_terjawab FROM student_answers 
+             WHERE student_exam_id = ? AND (opsi_id IS NOT NULL OR jawaban_matching IS NOT NULL)`,
+            [student_exam_id]
+        );
+        const terjawab = countData[0].total_terjawab;
+
+        // Kirim update ke Live Monitoring
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('peserta:progress_update', {
+                siswa_id: siswaId,
+                terjawab: terjawab
+            });
+        }
+        // ================================================================
 
         await connection.commit();
 
@@ -571,13 +596,15 @@ const lockSesiUjian = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Sesi ujian tidak ditemukan.' });
         }
 
-        if (examSession[0].status === 'Mengerjakan') {
+        // ==========================================
+        // FIX 2: TERMASUKKAN STATUS 'Login' 
+        // ==========================================
+        if (examSession[0].status === 'Mengerjakan' || examSession[0].status === 'Login') {
             await connection.query(
                 `UPDATE student_exams SET status = 'Terkunci' WHERE id = ?`,
                 [student_exam_id]
             );
 
-            // 🔥 LOGGER FIX: Cari nama siswa dulu sebelum nge-log
             const [siswaTarget] = await connection.query('SELECT nama FROM users_siswa WHERE id = ?', [siswaId]);
             const namaSiswa = siswaTarget.length > 0 ? siswaTarget[0].nama : `Siswa`;
 
@@ -588,23 +615,18 @@ const lockSesiUjian = async (req, res) => {
                 `Sistem mengunci ujian karena ${namaSiswa} terdeteksi berpindah tab atau keluar fullscreen.`
             );
 
-            // ===============================================================
-            // 📡 SOCKET.IO TRIGGER: UPDATE DASHBOARD ADMIN (PELANGGARAN)
-            // ===============================================================
             const io = req.app.get('io');
             if (io) {
                 const dashboardData = await getUpdatedDashboardData(connection);
                 if (dashboardData) {
                     io.emit('dashboard:update', dashboardData);
-                    io.emit('stats:update', dashboardData.stats); // Silent update angka pelanggaran
+                    io.emit('stats:update', dashboardData.stats); 
 
-                    // Silent update card siswa jadi "Terputus" (Terkunci)
                     io.emit('peserta:update', {
                         id: siswaId.toString(),
                         status: 'Terputus' 
                     });
 
-                    // Trigger alert log pelanggaran
                     const timeNow = new Date().toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
                     io.emit('log:new', {
                         id: Date.now(),

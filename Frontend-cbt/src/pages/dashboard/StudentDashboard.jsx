@@ -9,6 +9,10 @@ import {
 } from 'lucide-react';
 import api from '../../api/axiosConfig';
 import { toast } from 'sonner';
+import Swal from 'sweetalert2';
+
+// 1. TAMBAHAN: Import Socket (Sesuaikan path-nya jika berbeda)
+import { io } from 'socket.io-client'; 
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -23,7 +27,8 @@ const StudentDashboard = () => {
     nisn: userObj?.nisn || '-',
     no_peserta: userObj?.no_peserta || userObj?.nomor_peserta || '-',
     kelas_nama: userObj?.kelas?.nama_kelas || userObj?.nama_kelas || userObj?.kelas || '-', 
-    kelas_id: userObj?.kelas_id || 1
+    kelas_id: userObj?.kelas_id || 1,
+    id: userObj?.id || null // Pastikan ID siswa tersedia
   };
 
   // State Utama
@@ -36,7 +41,49 @@ const StudentDashboard = () => {
   // --- STATE BARU UNTUK FILTER & PAGINASI ---
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10); // Bisa 10, 20, 50, atau 'semua'
+  const [itemsPerPage, setItemsPerPage] = useState(10); 
+
+  // ==========================================
+  // TAMBAHAN POIN 3: LISTENER SOCKET UNTUK FORCE LOGOUT
+  // ==========================================
+  useEffect(() => {
+    // Jika tidak ada ID siswa, batalkan
+    if (!studentData.id) return;
+
+    // 1. Inisialisasi koneksi socket ke URL Backend
+    // Ganti URL ini dengan URL Backend mas brow, atau gunakan environment variable
+    const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'; 
+    const socket = io(backendUrl);
+
+    // 2. Sesuaikan nama event dengan format backend: `force_logout:${id}`
+    const eventName = `force_logout:${studentData.id}`;
+
+    const handleForceLogout = () => {
+      // Karena event name sudah spesifik per ID, tidak perlu cek ID lagi di sini
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      Swal.fire({
+        icon: 'warning',
+        title: 'Sesi Berakhir!',
+        text: 'Device Anda telah di-reset oleh Admin. Silakan login kembali.',
+        confirmButtonText: 'OK',
+        allowOutsideClick: false
+      }).then(() => {
+        navigate('/login', { replace: true });
+      });
+    };
+
+    // 3. Dengarkan event tersebut
+    socket.on(eventName, handleForceLogout);
+
+    // 4. Bersihkan koneksi saat pindah halaman (unmount)
+    return () => {
+      socket.off(eventName, handleForceLogout);
+      socket.disconnect(); // Penting agar tidak terjadi memory leak/koneksi dobel
+    };
+  }, [navigate, studentData.id]);
+  // ==========================================
 
   // 2. Real-time Clock Engine
   useEffect(() => {
@@ -83,6 +130,25 @@ const StudentDashboard = () => {
         setCompletedExams([]);
       }
     } catch (error) {
+      // ==========================================
+      // TAMBAHAN: TANGKAP ERROR DARI MIDDLEWARE API
+      // Jika middleware checkSiswaActive menolak request (misal siswa refresh halaman)
+      // ==========================================
+      if (error.response && error.response.status === 401 && error.response.data.forceLogout) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          Swal.fire({
+              icon: 'warning',
+              title: 'Sesi Berakhir!',
+              text: 'Sesi login telah di-reset oleh Admin. Silakan login kembali.',
+              confirmButtonText: 'OK',
+              allowOutsideClick: false
+          }).then(() => {
+              navigate('/login', { replace: true });
+          });
+          return; // Hentikan eksekusi fetch
+      }
+
       console.error("Gagal memuat data ujian:", error);
       toast.error('Gagal mengambil data dashboard.');
       setExams([]);
@@ -90,7 +156,7 @@ const StudentDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -101,6 +167,7 @@ const StudentDashboard = () => {
   };
 
   const getSubjectTheme = (mapelName) => {
+    // ... [KODE getSubjectTheme MAS BROW TETAP SAMA] ...
     if (!mapelName) return { icon: FileText, color: 'from-slate-600 to-slate-800', bg: 'bg-slate-100', text: 'text-slate-600' };
     
     const name = mapelName.toLowerCase();

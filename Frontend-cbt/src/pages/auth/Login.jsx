@@ -21,7 +21,7 @@ const Login = () => {
   });
 
   // URL Backend untuk load gambar (Pastikan port ini sama dengan backend mas brow)
-  const backendBaseUrl = 'http://localhost:5000/uploads/logos/';
+  const backendBaseUrl = 'http://11.11.4.41:5000/uploads/logos/';
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -47,7 +47,7 @@ const Login = () => {
         if (!formData.nis || !formData.no_peserta || !formData.token_masuk) {
           throw new Error('Semua kolom Siswa wajib diisi!');
         }
-        endpoint = 'http://localhost:5000/api/auth/siswa'; 
+        endpoint = 'http://11.11.4.41:5000/api/auth/siswa'; 
         
         let deviceId = localStorage.getItem('device_id');
         if (!deviceId) {
@@ -65,7 +65,7 @@ const Login = () => {
         if (!formData.username || !formData.password) {
           throw new Error('Username dan Password wajib diisi!');
         }
-        endpoint = 'http://localhost:5000/api/auth/admin'; 
+        endpoint = 'http://11.11.4.41:5000/api/auth/admin'; 
         payload = {
           username: formData.username,
           password: formData.password

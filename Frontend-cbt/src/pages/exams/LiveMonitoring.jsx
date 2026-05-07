@@ -51,16 +51,36 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
       fetchMonitoringData();
     };
 
+    // === TAMBAHAN POINT B: Listener khusus update progress bar ===
+    const handleProgressUpdate = (dataUpdate) => {
+      setPeserta((prevPeserta) => 
+        prevPeserta.map((p) => {
+          if (p.siswa_id === dataUpdate.siswa_id) {
+            // ✅ Update terjawab & pastikan total_soal tidak hilang
+            return { 
+                ...p, 
+                terjawab: dataUpdate.terjawab,
+                total_soal: dataUpdate.total_soal || p.total_soal 
+            }; 
+          }
+          return p;
+        })
+      );
+    };
+    // ==============================================================
+
     socket.on('peserta:update', handleSilentRefresh);
     socket.on('stats:refresh', handleSilentRefresh);
     socket.on('stats:update', handleSilentRefresh);
     socket.on('log:new', handleSilentRefresh);
+    socket.on('peserta:progress_update', handleProgressUpdate); // Daftarkan socket progress
 
     return () => {
       socket.off('peserta:update', handleSilentRefresh);
       socket.off('stats:refresh', handleSilentRefresh);
       socket.off('stats:update', handleSilentRefresh);
       socket.off('log:new', handleSilentRefresh);
+      socket.off('peserta:progress_update', handleProgressUpdate); // Bersihkan socket progress
     };
   }, [socket]);
 
@@ -305,11 +325,22 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {peserta.length > 0 ? peserta.map((p) => {
-              const totalSoal = p.total_soal || 40; 
-              const progressPct = p.terjawab ? Math.round((p.terjawab / totalSoal) * 100) : 0;
+              // ✅ FIX 3: Ambil total soal dari DB (default 1 jika kosong), bukan 40 lagi.
+              const totalSoal = p.total_soal || p.totalSoal || 1; 
+              // Hitung persentase
+              let progressPct = p.terjawab ? Math.round((p.terjawab / totalSoal) * 100) : 0;
+              // ✅ FIX 4: Jika status siswa sudah Selesai, paksa bar jadi 100% biar tuntas
+              if (p.status === 'Selesai' || progressPct > 100) {
+                  progressPct = 100;
+              }
+              
+              // ✅ FIX 5 (UPDATE): Menampilkan lama pengerjaan secara dinamis
+              const displayWaktu = p.status === 'Selesai' 
+                ? (p.lama_pengerjaan || 'Selesai') 
+                : (p.sisaWaktu || '-');
 
               return (
-                <div key={p.siswa_id || Math.random()} className={`bg-white p-5 rounded-2xl border ${p.status === 'Terkunci' ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'} shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between gap-4`}>
+                <div key={p.siswa_id || p.id || Math.random()} className={`bg-white p-5 rounded-2xl border ${p.status === 'Terkunci' ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'} shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between gap-4`}>
                   <div className="flex justify-between items-start">
                     <div className="flex gap-3 items-center">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-inner ${getAvatarColor(p.nama)}`}>
@@ -336,7 +367,7 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                   <div className="flex justify-between items-end pt-3 border-t border-slate-100">
                     <div className="space-y-1">
                       <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                        <Clock size={12} /> {p.status === 'Belum Login' ? 'Belum Mulai' : p.sisaWaktu || '-'}
+                        <Clock size={12} /> {p.status === 'Belum Login' ? 'Belum Mulai' : displayWaktu}
                       </div>
                       <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                         <CheckCircle2 size={12} /> {p.terjawab || 0} Terjawab
@@ -350,7 +381,6 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                       
                       {p.status === 'Terkunci' && (
                         <button 
-                          // Format: (param1: studentExamId, param2: siswaId, param3: actionType)
                           onClick={() => handleAksiPeserta(p.student_exam_id, p.siswa_id, 'buka-kunci')}
                           className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 rounded-lg shadow-sm transition-colors"
                         >
@@ -359,12 +389,12 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                       )}
 
                       {['Login', 'Mengerjakan'].includes(p.status) && (
-                         <button 
-                         onClick={() => handleAksiPeserta(null, p.siswa_id, 'reset-login')}
-                         className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-800 hover:text-white rounded-lg transition-colors"
-                       >
-                         Reset Device
-                       </button>
+                          <button 
+                          onClick={() => handleAksiPeserta(p.student_exam_id, p.siswa_id, 'reset-login')}
+                          className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-800 hover:text-white rounded-lg transition-colors"
+                        >
+                          Reset Device
+                        </button>
                       )}
                     </div>
                   </div>
@@ -383,16 +413,28 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                     <th className="px-6 py-4 font-semibold">Siswa</th>
                     <th className="px-6 py-4 font-semibold">Status</th>
                     <th className="px-6 py-4 font-semibold">Progress</th>
-                    <th className="px-6 py-4 font-semibold">Sisa Waktu</th>
+                    <th className="px-6 py-4 font-semibold">Waktu</th>
                     <th className="px-6 py-4 font-semibold text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {peserta.length > 0 ? peserta.map((p) => {
-                     const totalSoal = p.total_soal || 40; 
-                     const progressPct = p.terjawab ? Math.round((p.terjawab / totalSoal) * 100) : 0;
-                     return (
-                      <tr key={p.id || Math.random()} className={`transition-colors ${p.status === 'Terkunci' ? 'bg-rose-50/20' : 'hover:bg-slate-50/50'}`}>
+                      // ✅ FIX 3: Ambil total soal dari DB (default 1 jika kosong), bukan 40 lagi.
+                      const totalSoal = p.total_soal || p.totalSoal || 1; 
+                      // Hitung persentase
+                      let progressPct = p.terjawab ? Math.round((p.terjawab / totalSoal) * 100) : 0;
+                      // ✅ FIX 4: Jika status siswa sudah Selesai, paksa bar jadi 100% biar tuntas
+                      if (p.status === 'Selesai' || progressPct > 100) {
+                          progressPct = 100;
+                      }
+                      
+                      // ✅ FIX 5 (UPDATE): Menampilkan lama pengerjaan secara dinamis
+                      const displayWaktu = p.status === 'Selesai' 
+                        ? (p.lama_pengerjaan || 'Selesai') 
+                        : (p.sisaWaktu || '-');
+
+                      return (
+                      <tr key={p.id || p.siswa_id || Math.random()} className={`transition-colors ${p.status === 'Terkunci' ? 'bg-rose-50/20' : 'hover:bg-slate-50/50'}`}>
                         <td className="px-6 py-4 flex items-center gap-3">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-inner ${getAvatarColor(p.nama)}`}>
                             {getInitials(p.nama)}
@@ -411,14 +453,13 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                             <span className="text-xs font-bold text-slate-700">{progressPct}%</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 font-mono text-xs text-slate-600">{p.sisaWaktu || '-'}</td>
+                        <td className="px-6 py-4 font-mono text-xs text-slate-600">{displayWaktu}</td>
                         <td className="px-6 py-4 flex justify-end gap-2">
                           {p.status === 'Selesai' && (
                             <button className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors">Lihat Hasil</button>
                           )}
                           {p.status === 'Terkunci' && (
                             <button 
-                              // Format: (param1: studentExamId, param2: siswaId, param3: actionType)
                               onClick={() => handleAksiPeserta(p.student_exam_id, p.siswa_id, 'buka-kunci')}
                               className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 rounded-lg shadow-sm transition-colors"
                             >
@@ -427,7 +468,7 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                           )}
                           {['Login', 'Mengerjakan'].includes(p.status) && (
                             <button 
-                              onClick={() => handleAksiPeserta(null, p.siswa_id, 'reset-login')}
+                              onClick={() => handleAksiPeserta(p.student_exam_id, p.siswa_id, 'reset-login')}
                               className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-800 hover:text-white rounded-lg transition-colors"
                             >
                               Reset Device
@@ -435,7 +476,7 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                           )}
                         </td>
                       </tr>
-                     )
+                      )
                   }) : (
                     <tr>
                       <td colSpan="5" className="px-6 py-10 text-center text-slate-500 font-medium">Sesi ujian belum dimulai atau tidak ada peserta.</td>
@@ -480,7 +521,7 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
         {/* ACTIVITY LOGS */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex-1">
           <h3 className="font-bold text-sm text-slate-800 mb-6">Log Aktivitas</h3>
-          <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2">
+          <div className="space-y-6 max-h-125 overflow-y-auto pr-2">
             {logs.length > 0 ? logs.map((log) => (
               <div key={log.id || Math.random()} className="relative flex items-start gap-4">
                 <div className={`relative z-10 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center bg-white ${

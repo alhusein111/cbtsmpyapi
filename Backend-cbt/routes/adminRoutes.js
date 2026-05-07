@@ -42,7 +42,9 @@ router.get('/monitoring', async (req, res) => {
         // ✅ 1. AMBIL STATISTIK DARI HELPER
         const dashboardData = await getDashboardStats(db);
 
-        // 2. AMBIL DATA PESERTA 
+        // ==============================================================
+        // 2. AMBIL DATA PESERTA (Perbaikan Progress 100% & Waktu)
+        // ==============================================================
         const [pesertaRows] = await db.query(`
             SELECT 
                 s.nis AS id, 
@@ -56,42 +58,90 @@ router.get('/monitoring', async (req, res) => {
                     WHEN se.status = 'Login' OR s.is_login = 1 THEN 'Login'
                     ELSE 'Belum Login'
                 END as status,
-                0 AS progress, 
-                '00:00' AS sisaWaktu, 
-                0 AS terjawab, 
-                0 AS totalSoal,
-                '00:00' AS idleTime
+                
+                -- Hitung Total Terjawab
+                IFNULL((SELECT COUNT(id) FROM student_answers WHERE student_exam_id = se.id AND (opsi_id IS NOT NULL OR jawaban_matching IS NOT NULL)), 0) AS terjawab, 
+                
+                -- ✅ FIX 1: Total soal BUKAN DARI BANK SOAL, tapi dari jumlah kertas jawaban siswa yang ter-generate!
+                IFNULL((SELECT COUNT(id) FROM student_answers WHERE student_exam_id = se.id), 1) AS total_soal,
+                
+                -- ✅ FIX 2: Progress fleksibel menghitung: (Terjawab / Total Soal Siswa) * 100
+                -- Dikali 100.0 agar SQL tidak membulatkan desimal menjadi 0 sebelum dihitung
+                IFNULL(ROUND(
+                    (
+                        (SELECT COUNT(id) FROM student_answers WHERE student_exam_id = se.id AND (opsi_id IS NOT NULL OR jawaban_matching IS NOT NULL)) 
+                        * 100.0
+                    ) 
+                    / 
+                    NULLIF((SELECT COUNT(id) FROM student_answers WHERE student_exam_id = se.id), 0)
+                ), 0) AS progress,
+
+                -- Hitung Lama Pengerjaan (Selisih Waktu Selesai - Waktu Mulai)
+                CASE 
+                    WHEN se.status = 'Selesai' AND se.waktu_selesai_pengerjaan IS NOT NULL 
+                    THEN TIME_FORMAT(TIMEDIFF(se.waktu_selesai_pengerjaan, se.waktu_mulai_pengerjaan), '%H:%i:%s')
+                    ELSE NULL 
+                END AS lama_pengerjaan,
+
+                -- Hitung Sisa Waktu Detik
+                CASE 
+                    WHEN se.status IN ('Mengerjakan', 'Login', 'Terkunci') AND se.waktu_mulai_pengerjaan IS NOT NULL THEN
+                        GREATEST(0, (e.durasi * 60) - TIMESTAMPDIFF(SECOND, se.waktu_mulai_pengerjaan, NOW()))
+                    ELSE 0
+                END AS sisa_waktu_detik
+
             FROM users_siswa s
             LEFT JOIN student_exams se ON s.id = se.siswa_id
+            LEFT JOIN exams e ON se.exam_id = e.id -- Join ke exams untuk ambil durasi
             WHERE s.is_login = 1 OR se.id IS NOT NULL
             ORDER BY se.waktu_mulai_pengerjaan DESC, s.nama ASC
         `);
 
-        // 3. AMBIL LOG AKTIVITAS 
+        // ==============================================================
+        // 3. AMBIL LOG AKTIVITAS (Tetap sama, tidak ada yang dirubah)
+        // ==============================================================
         const [logRows] = await db.query(`
             SELECT 
-                id, 
+                el.id, 
                 CASE 
-                    WHEN event = 'EXAM_FINISH' THEN 'success'
-                    WHEN event = 'VIOLATION_BLUR' THEN 'error'
-                    WHEN event = 'APP_LOGIN' THEN 'start'
-                    WHEN event = 'APP_LOGOUT' THEN 'warning'
+                    WHEN el.event = 'EXAM_FINISH' THEN 'success'
+                    WHEN el.event = 'VIOLATION_BLUR' THEN 'error'
+                    WHEN el.event = 'APP_LOGIN' THEN 'start'
+                    WHEN el.event = 'APP_LOGOUT' THEN 'warning'
                     ELSE 'info'
                 END AS type, 
-                detail AS text, 
-                DATE_FORMAT(created_at, '%H:%i') AS time 
-            FROM exam_logs 
-            ORDER BY created_at DESC 
+                
+                -- CONCAT: Gabungkan Nama Siswa dengan isi Log
+                CONCAT(IFNULL(s.nama, 'Sistem'), ' ', LOWER(el.detail)) AS text, 
+                
+                DATE_FORMAT(el.created_at, '%H:%i') AS time 
+            FROM exam_logs el
+            LEFT JOIN users_siswa s ON el.siswa_id = s.id 
+            ORDER BY el.created_at DESC 
             LIMIT 20
         `);
 
         const trafficData = [10, 20, 45, 80, 95, 60, 30, 15, 5];
 
+        // Helper ubah detik ke format Jam:Menit:Detik
+        const formatSisaWaktu = (seconds) => {
+            if (seconds <= 0) return "00:00:00";
+            const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+            const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        };
+
+        const pesertaFormatted = pesertaRows.map(p => ({
+            ...p,
+            sisaWaktu: formatSisaWaktu(p.sisa_waktu_detik)
+        }));
+
         res.status(200).json({
             success: true,
             data: {
-                stats: dashboardData.stats, // ✅ Ambil hasil dari helper
-                peserta: pesertaRows,
+                stats: dashboardData.stats, 
+                peserta: pesertaFormatted,
                 logs: logRows,
                 traffic: trafficData
             }
