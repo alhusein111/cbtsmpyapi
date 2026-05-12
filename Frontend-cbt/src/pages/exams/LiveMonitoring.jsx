@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/axiosConfig';
 import { 
   Activity, Users, CheckSquare, AlertTriangle, ClipboardList,
@@ -8,9 +9,11 @@ import {
 
 import Swal from 'sweetalert2';
 
+
 const LiveMonitoring = ({ socket, examId = 1 }) => { 
   const [viewMode, setViewMode] = useState('grid');
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
 
   const [stats, setStats] = useState({
     siswaLogin: 0,
@@ -376,7 +379,12 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
 
                     <div className="flex gap-2">
                       {p.status === 'Selesai' && (
-                        <button className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors">Lihat Hasil</button>
+                        <button 
+                          onClick={() => navigate(`/hasil/siswa/${p.student_exam_id || p.id}`)} 
+                          className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+                        >
+                          Lihat Hasil
+                        </button>
                       )}
                       
                       {p.status === 'Terkunci' && (
@@ -456,7 +464,12 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                         <td className="px-6 py-4 font-mono text-xs text-slate-600">{displayWaktu}</td>
                         <td className="px-6 py-4 flex justify-end gap-2">
                           {p.status === 'Selesai' && (
-                            <button className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors">Lihat Hasil</button>
+                            <button 
+                              onClick={() => navigate(`/hasil/siswa/${p.student_exam_id || p.id}`)} 
+                              className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
+                            >
+                              Lihat Hasil
+                            </button>
                           )}
                           {p.status === 'Terkunci' && (
                             <button 

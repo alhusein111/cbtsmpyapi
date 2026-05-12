@@ -19,7 +19,7 @@ const fixHTMLContent = (htmlString) => {
   if (!htmlString) return '';
   
   // Sesuaikan URL ini dengan port/host Backend Anda!
-  const backendUrl = 'http://11.11.4.41:5000'; 
+  const backendUrl = 'http://localhost:5000'; 
   
   // Asumsi folder penyimpanan gambar Anda di backend adalah 'uploads'
   return htmlString.replace(/src="\/uploads/g, `src="${backendUrl}/uploads/soal`);
@@ -611,7 +611,7 @@ const CbtArena = () => {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row max-w-[1400px] mx-auto w-full p-4 md:p-6 gap-6 flex-1 h-full">
+      <div className="flex flex-col lg:flex-row max-w-350 mx-auto w-full p-4 md:p-6 gap-6 flex-1 h-full">
         <div className="flex-1 flex flex-col gap-6">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
             

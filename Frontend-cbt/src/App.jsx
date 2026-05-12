@@ -20,6 +20,9 @@ import EditQuestion from './pages/banksoal/EditQuestion';
 import Pengaturan from './pages/master/Pengaturan';
 import Dashboard from './pages/Dashboard';
 import CbtArena from './pages/exams/CbtArena';
+import HasilKelas from './pages/hasil/HasilKelas';
+import DaftarHasilUjian from './pages/hasil/DaftarHasilUjian';
+import DetailSiswa from './pages/hasil/DetailSiswa';
 
 // === BUAT KONEKSI SOCKET DI LUAR APP ===
 const socket = io('http://localhost:5000'); 
@@ -56,6 +59,10 @@ function App() {
                 
                 {/* HANYA ADA SATU ROUTE EXAMS/LIVE SEKARANG */}
                 <Route path="exams/live" element={<LiveMonitoring socket={socket} />} />
+
+                <Route path="/hasil/ujian" element={<DaftarHasilUjian />} />
+                <Route path="/hasil/kelas/:exam_id" element={<HasilKelas />} />
+                <Route path="/hasil/siswa/:student_exam_id" element={<DetailSiswa />} />
                 
                 <Route path="exams" element={<ManajemenUjian />} /> 
                 <Route path="exams/:examId/questions" element={<BankSoalList />} /> 

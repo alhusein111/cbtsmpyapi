@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useSettings } from '../context/SettingsContext';
-import { LayoutDashboard, Users, Briefcase, BookOpen, Settings, Activity, FileText } from 'lucide-react';
+import { LayoutDashboard, Users, Briefcase, BookOpen, Settings, Activity, FileText, BarChart2 } from 'lucide-react'; // Tambah BarChart2
 
 const Sidebar = ({ isOpen }) => {
   const { settings } = useSettings();
@@ -29,6 +29,7 @@ const Sidebar = ({ isOpen }) => {
     { name: 'Kelas & Mapel', icon: FileText, path: '/master/kelasmapel', adminOnly: true },
     { name: 'Manajemen Ujian', icon: BookOpen, path: '/exams', adminOnly: false }, 
     { name: 'Live Monitor', icon: Activity, path: '/exams/live', adminOnly: false }, 
+    { name: 'Hasil Ujian', icon: BarChart2, path: '/hasil/ujian', adminOnly: false }, // ✅ MENU BARU DITAMBAHKAN
     { name: 'Pengaturan', icon: Settings, path: '/master/pengaturan', adminOnly: false },
   ];
 
