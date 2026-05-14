@@ -175,71 +175,12 @@ router.get('/tokens', async (req, res) => {
 });
 
 
-// ✅ ENDPOINT: REKAP HASIL UJIAN PER KELAS
-router.get('/hasil/kelas/:exam_id', async (req, res) => {
-    const { exam_id } = req.params;
-    // Asumsi batas KKM / Lulus adalah 75
-    const KKM = 75; 
-
-    try {
-        const [hasilRows] = await db.query(`
-            SELECT 
-                s.nis,
-                s.id AS siswa_id,
-                s.nama,
-                se.id AS student_exam_id,
-                se.nilai_akhir,
-                CASE 
-                    WHEN se.nilai_akhir >= ? THEN 'LULUS'
-                    ELSE 'REMEDIAL'
-                END AS status
-            FROM student_exams se
-            JOIN users_siswa s ON se.siswa_id = s.id
-            WHERE se.exam_id = ? AND se.status = 'Selesai'
-            ORDER BY se.nilai_akhir DESC
-        `, [KKM, exam_id]);
-
-        // Kalkulasi Statistik Cepat di Backend
-        const totalSiswa = hasilRows.length;
-        const lulusCount = hasilRows.filter(h => h.status === 'LULUS').length;
-        const remedialCount = totalSiswa - lulusCount;
-        
-        let rataRata = 0;
-        if (totalSiswa > 0) {
-            const totalNilai = hasilRows.reduce((sum, current) => sum + (current.nilai_akhir || 0), 0);
-            rataRata = (totalNilai / totalSiswa).toFixed(2);
-        }
-
-        // Tambahkan Ranking secara dinamis berdasarkan urutan array (karena sudah di-ORDER BY nilai_akhir DESC)
-        const hasilWithRank = hasilRows.map((item, index) => ({
-            ...item,
-            rank: index + 1
-        }));
-
-        res.status(200).json({
-            success: true,
-            data: {
-                statistik: {
-                    total_siswa: totalSiswa,
-                    rata_rata: rataRata,
-                    lulus: lulusCount,
-                    remedial: remedialCount,
-                    persentase_lulus: totalSiswa > 0 ? Math.round((lulusCount / totalSiswa) * 100) : 0
-                },
-                siswa: hasilWithRank
-            }
-        });
-
-    } catch (error) {
-        console.error('Error fetch hasil kelas:', error);
-        res.status(500).json({ message: 'Gagal mengambil data hasil ujian kelas' });
-    }
-});
-
-
-//Hasil Controller
+// ==========================================
+// --- RUTE HASIL UJIAN ---
+// ==========================================
 router.get('/hasil/daftar-ujian', verifyToken, hasilController.getDaftarUjian);
 router.get('/hasil/kelas/:exam_id', verifyToken, hasilController.getHasilKelas);
+router.get('/hasil/siswa-detail/:student_exam_id', verifyToken, hasilController.getDetailSiswaUjian);
 
 
 module.exports = router;

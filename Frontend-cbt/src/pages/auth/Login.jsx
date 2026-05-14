@@ -6,6 +6,8 @@ import Input from '../../components/Input';
 import Button from '../../components/Button';
 import { GraduationCap, Briefcase, ShieldCheck } from 'lucide-react';
 
+import api from '../../api/axiosConfig'; 
+
 const Login = () => {
   const { login } = useAuth();
   // 2. Panggil state settings
@@ -21,7 +23,7 @@ const Login = () => {
   });
 
   // URL Backend untuk load gambar (Pastikan port ini sama dengan backend mas brow)
-  const backendBaseUrl = 'http://localhost:5000/uploads/logos/';
+  const backendBaseUrl = `${import.meta.env.VITE_API_URL}/uploads/logos/`;
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -47,7 +49,7 @@ const Login = () => {
         if (!formData.nis || !formData.no_peserta || !formData.token_masuk) {
           throw new Error('Semua kolom Siswa wajib diisi!');
         }
-        endpoint = 'http://localhost:5000/api/auth/siswa'; 
+        endpoint = '/api/auth/siswa'; 
         
         let deviceId = localStorage.getItem('device_id');
         if (!deviceId) {
@@ -65,20 +67,16 @@ const Login = () => {
         if (!formData.username || !formData.password) {
           throw new Error('Username dan Password wajib diisi!');
         }
-        endpoint = 'http://localhost:5000/api/auth/admin'; 
+        endpoint = '/api/auth/admin'; 
         payload = {
           username: formData.username,
           password: formData.password
         };
       }
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const response = await api.post(endpoint, payload);
 
-      const data = await response.json();
+      const data =  response.data;
 
       if (response.ok && data.success) {
         const userData = {
@@ -91,9 +89,16 @@ const Login = () => {
       }
 
     } catch (err) {
-      setError(err.message === 'Failed to fetch' 
-        ? 'Tidak dapat terhubung ke server backend!' 
-        : err.message);
+      if (err.response) {
+        // Backend menolak (misal: password salah, username tidak ada)
+        setError(err.response.data.message || 'Gagal masuk. Periksa kembali data Anda.');
+      } else if (err.request) {
+        // Backend mati / tidak ada respon
+        setError('Tidak dapat terhubung ke server backend!');
+      } else {
+        // Error Javascript lainnya
+        setError(err.message);
+      }
     } finally {
       setIsLoading(false);
     }

@@ -5,23 +5,20 @@ import Topbar from '../components/Topbar';
 
 const MainLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar */}
+    <div className="flex h-screen bg-background overflow-hidden print:block print:h-auto print:overflow-visible print:bg-white">
+      
       <Sidebar isOpen={isSidebarOpen} />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col md:ml-65 h-screen overflow-hidden">
-        {/* Topbar */}
+      <div className="flex-1 flex flex-col md:ml-65 h-screen overflow-hidden print:block print:h-auto print:overflow-visible print:m-0">
+        
         <Topbar toggleSidebar={toggleSidebar} />
 
-        {/* Scrollable Canvas (Halaman Utama akan render di sini) */}
-        <main className="flex-1 overflow-y-auto p-6 bg-surface-container-low">
-          <div className="max-w-7xl mx-auto">
-             <Outlet /> {/* <-- Konten dari Routes akan masuk ke sini */}
+        <main className="flex-1 overflow-y-auto p-6 bg-surface-container-low print:block print:h-auto print:overflow-visible print:p-0 print:bg-white">
+          <div className="max-w-7xl mx-auto print:max-w-none print:m-0">
+             <Outlet />
           </div>
         </main>
       </div>
@@ -29,7 +26,7 @@ const MainLayout = () => {
       {/* Overlay untuk Mobile ketika Sidebar Terbuka */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/50 z-40 md:hidden print:hidden"
           onClick={toggleSidebar}
         ></div>
       )}

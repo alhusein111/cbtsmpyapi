@@ -520,7 +520,11 @@ const Pengaturan = () => {
                     <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 mt-2">
                       <div className="w-24 h-24 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
                         {currentLogo ? (
-                          <img src={`http://localhost:5000/uploads/logos/${currentLogo}`} alt="Logo" className="w-full h-full object-contain" />
+                          <img 
+                            src={`${import.meta.env.VITE_API_URL}/uploads/logos/${currentLogo}`} 
+                            alt="Logo" 
+                            className="w-full h-full object-contain" 
+                          />
                         ) : (
                           <ImageIcon size={32} className="text-slate-400" />
                         )}

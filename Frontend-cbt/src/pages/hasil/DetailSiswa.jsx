@@ -1,119 +1,238 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+// IMPORT instance api dari file axiosConfig mas brow
+// Sesuaikan path ../ nya jika letak filenya berbeda
+import api from '../../api/axiosConfig'; 
 
 const DetailSiswa = () => {
+  const { student_exam_id } = useParams();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [detailData, setDetailData] = useState(null);
 
-  return (
-    <div className="p-6 bg-slate-50 min-h-screen">
-      {/* Header Info */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-blue-100 rounded-xl overflow-hidden">
-            {/* Ganti dengan img src foto siswa */}
-            <div className="w-full h-full bg-slate-300 flex items-center justify-center text-slate-500 font-bold text-xl">BS</div>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-blue-900">Budi Santoso</h1>
-            <p className="text-sm text-gray-500 flex items-center gap-3">
-              <span className="flex items-center gap-1"><span className="bg-gray-200 p-1 rounded">🎓</span> Kelas 9A</span> 
-              <span>•</span>
-              <span className="flex items-center gap-1"><span className="bg-gray-200 p-1 rounded">📅</span> Midterm Mathematics 2026</span>
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <button className="px-4 py-2 border bg-white rounded-lg font-medium text-gray-700 hover:bg-gray-50">🖨 Print Report</button>
-          <button className="px-4 py-2 bg-blue-900 text-white rounded-lg font-medium hover:bg-blue-800">⬇ Download PDF</button>
-        </div>
+  useEffect(() => {
+    const fetchDetailSiswa = async () => {
+      try {
+        // PAKAI api.get (Otomatis bawa token & baseURL)
+        const response = await api.get(`/api/admin/hasil/siswa-detail/${student_exam_id}`);
+
+        if (response.data.success) {
+          setDetailData(response.data.data);
+        }
+      } catch (error) {
+        console.error("🔴 Gagal mengambil detail siswa:", error);
+        alert(error.response?.data?.message || "Gagal memuat data detail siswa.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (student_exam_id) fetchDetailSiswa();
+  }, [student_exam_id]);
+
+  const handleDownloadPDF = () => {
+    window.print();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-slate-50">
+        <p className="text-lg font-medium text-gray-600 animate-pulse">Memuat data detail siswa...</p>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        {/* Card Score */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center relative">
-          <div className="absolute top-4 right-4 text-emerald-500 bg-emerald-50 p-1 rounded-full">✓</div>
-          <h3 className="text-sm font-semibold text-gray-500 mb-4 uppercase tracking-wider">Total Score</h3>
-          <div className="w-40 h-40 rounded-full border-[12px] border-emerald-500 flex items-center justify-center mb-6">
-            <div className="text-center">
-              <p className="text-4xl font-black text-gray-800">85<span className="text-lg text-gray-400 font-medium">/100</span></p>
-              <p className="text-sm font-bold text-emerald-600 mt-1">LULUS</p>
-            </div>
-          </div>
-          <div className="w-full flex justify-between border-t pt-4">
-            <div className="text-center w-1/2 border-r">
-              <p className="text-xs text-gray-400 uppercase font-semibold">Rank</p>
-              <p className="text-lg font-bold text-gray-800">4<span className="text-sm font-normal text-gray-500">/32</span></p>
-            </div>
-            <div className="text-center w-1/2">
-              <p className="text-xs text-gray-400 uppercase font-semibold">Duration</p>
-              <p className="text-lg font-bold text-gray-800">82<span className="text-sm font-normal text-gray-500">m</span></p>
-            </div>
-          </div>
-        </div>
-
-        {/* Card Topic Performance (TP/ATP) */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 md:col-span-2">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-sm font-semibold text-blue-900 uppercase tracking-wider">Topic Performance</h3>
-            <span className="text-xs text-gray-500">3 Topics Analyzed</span>
-          </div>
-
-          <div className="space-y-6">
-            {/* Topic 1 */}
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="font-bold text-blue-900">Aljabar (Persamaan Linear)</span>
-                <span className="font-bold text-gray-700">92%</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2.5 mb-1">
-                <div className="bg-emerald-400 h-2.5 rounded-full" style={{ width: '92%' }}></div>
-              </div>
-              <p className="text-xs text-gray-500">Penguasaan yang sangat baik dalam fungsi dan persamaan linier.</p>
-            </div>
-            
-            {/* Topic 2 */}
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="font-bold text-blue-900">Geometri (Bangun Ruang)</span>
-                <span className="font-bold text-gray-700">78%</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2.5 mb-1">
-                <div className="bg-orange-400 h-2.5 rounded-full" style={{ width: '78%' }}></div>
-              </div>
-              <p className="text-xs text-gray-500">Pemahaman yang baik, namun perlu teliti pada rumus volume.</p>
-            </div>
-
-            {/* Topic 3 */}
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="font-bold text-blue-900">Statistika (Data & Probabilitas)</span>
-                <span className="font-bold text-gray-700">85%</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2.5 mb-1">
-                <div className="bg-blue-800 h-2.5 rounded-full" style={{ width: '85%' }}></div>
-              </div>
-              <p className="text-xs text-gray-500">Konsisten dalam interpretasi data.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Teacher Feedback Banner */}
-      <div className="bg-blue-950 rounded-2xl p-6 flex items-start gap-6 shadow-lg mb-6 text-white relative overflow-hidden">
-        <div className="absolute -right-10 -top-10 text-9xl text-white/5 font-black">99</div>
-        <img src="https://ui-avatars.com/api/?name=Ibu+Aminah&background=random" alt="Teacher" className="w-16 h-16 rounded-full border-2 border-white/20 z-10" />
-        <div className="flex-1 z-10">
-          <p className="text-blue-200 text-sm font-semibold mb-2 uppercase tracking-wider">Feedback Pengajar</p>
-          <p className="italic text-lg text-blue-50 leading-relaxed mb-4">
-            "Budi menunjukkan pemahaman yang sangat kuat di bidang Aljabar. Ia sangat teliti dalam pengerjaan soal persamaan linear. Untuk kedepannya, fokuskan sedikit lebih banyak waktu pada latihan soal Statistik terutama dalam penentuan median dan modus. Kerja bagus!"
-          </p>
-          <p className="font-bold">Ibu Siti Aminah, M.Pd. <span className="text-blue-300 font-normal text-sm">• Guru Matematika</span></p>
-        </div>
-        <button className="z-10 px-4 py-2 bg-blue-100 text-blue-900 font-bold rounded-lg hover:bg-white transition mt-4 md:mt-0">
-          Hubungi Pengajar
+  if (!detailData) {
+    return (
+      <div className="p-6 text-center bg-slate-50 min-h-screen">
+        <p className="text-red-500 font-bold text-xl">Data detail siswa tidak ditemukan.</p>
+        <button 
+          onClick={() => navigate(-1)} 
+          className="mt-4 px-6 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition shadow-md"
+        >
+          ← Kembali ke Hasil Kelas
         </button>
       </div>
+    );
+  }
 
+  const { siswa, ujian, jawaban } = detailData;
+
+  return (
+    <div className="p-6 bg-slate-50 min-h-screen print:bg-white print:p-0">
+      
+      {/* Header Info & Navigasi */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 print:mb-6">
+        <div className="flex items-center gap-5">
+          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg uppercase">
+            {siswa.nama ? siswa.nama.substring(0, 2) : 'SS'}
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-800 print:text-black">{siswa.nama}</h1>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500 mt-1">
+              <span className="flex items-center gap-1 font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded">🎓 {siswa.nama_kelas || '-'}</span> 
+              <span className="hidden md:inline">•</span>
+              <span className="flex items-center gap-1">🆔 NIS: {siswa.nis || '-'}</span>
+              <span className="hidden md:inline">•</span>
+              <span className="flex items-center gap-1 font-semibold text-slate-700">📝 {ujian.title}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex gap-3 w-full md:w-auto print:hidden">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="flex-1 md:flex-none px-5 py-2.5 border border-slate-200 bg-white rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition"
+          >
+            ← Kembali
+          </button>
+          <button 
+            onClick={handleDownloadPDF} 
+            className="flex-1 md:flex-none px-5 py-2.5 bg-blue-900 text-white rounded-xl font-bold hover:bg-blue-800 flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95"
+          >
+            💾 Cetak Laporan
+          </button>
+        </div>
+      </div>
+
+      {/* Ringkasan Nilai & Statistik Utama */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 print:grid-cols-4 print:gap-4">
+        
+        {/* Total Score PieChart (BARU) */}
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center justify-center min-h-[240px]">
+          <h3 className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest print:hidden">Skor Akhir</h3>
+          
+          {/* Container Recharts (Hanya Tampil di Layar) */}
+          <div className="w-full h-36 relative print:hidden">
+             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className={`text-2xl font-black ${ujian.nilai_akhir >= ujian.kkm ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {ujian.nilai_akhir}
+                </span>
+             </div>
+             <ResponsiveContainer width="100%" height="100%">
+               <PieChart>
+                 <Pie 
+                    data={[
+                      { name: 'Skor Diraih', value: Number(ujian.nilai_akhir) },
+                      { name: 'Sisa Skor', value: 100 - Number(ujian.nilai_akhir) }
+                    ]} 
+                    innerRadius={45} 
+                    outerRadius={65} 
+                    paddingAngle={0} 
+                    dataKey="value" 
+                    stroke="none"
+                    animationDuration={1000}
+                 >
+                   {/* Cell Pertama: Warna Lulus (Hijau) atau Remedial (Merah) */}
+                   <Cell fill={ujian.nilai_akhir >= ujian.kkm ? '#10b981' : '#ef4444'} />
+                   {/* Cell Kedua: Warna Abu-abu untuk sisa skor sampai 100 */}
+                   <Cell fill="#f1f5f9" />
+                 </Pie>
+                 <Tooltip formatter={(value) => [`${value} Poin`, 'Nilai']} />
+               </PieChart>
+             </ResponsiveContainer>
+          </div>
+
+          {/* Fallback Tampilan Simple Khusus Untuk Print (Karena Recharts kadang blank saat di-print) */}
+          <div className="hidden print:flex flex-col items-center justify-center mb-3">
+             <h3 className="text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest">Skor Akhir</h3>
+             <div className={`w-28 h-28 rounded-full border-[6px] ${ujian.nilai_akhir >= ujian.kkm ? 'border-emerald-500 bg-emerald-50' : 'border-red-500 bg-red-50'} flex items-center justify-center shadow-inner`}>
+                <p className="text-4xl font-black text-slate-800">{ujian.nilai_akhir}</p>
+             </div>
+          </div>
+
+          <span className={`mt-2 px-4 py-1 rounded-full text-xs font-black ${ujian.nilai_akhir >= ujian.kkm ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'} uppercase z-10`}>
+            {ujian.nilai_akhir >= ujian.kkm ? 'LULUS' : 'REMEDIAL'}
+          </span>
+        </div>
+
+        {/* Statistik Detail Cards */}
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Benar</p>
+            <p className="text-4xl font-black text-emerald-600 mt-2">{ujian.jumlah_benar}</p>
+          </div>
+          <div className="border-t border-slate-50 pt-4 text-[11px] text-slate-400 leading-relaxed italic">
+            Poin dihitung berdasarkan bobot soal yang dijawab dengan benar.
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Salah / Kosong</p>
+            <p className="text-4xl font-black text-red-500 mt-2">{ujian.jumlah_salah}</p>
+          </div>
+          <div className="border-t border-slate-50 pt-4 text-[11px] text-slate-400 leading-relaxed italic">
+            Termasuk jawaban yang tidak diisi oleh siswa.
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">KKM Ujian</p>
+            <p className="text-4xl font-black text-blue-900 mt-2">{ujian.kkm}</p>
+          </div>
+          <div className="border-t border-slate-50 pt-4 text-[11px] text-slate-400 leading-relaxed italic">
+            Standar minimal kelulusan untuk mata pelajaran ini.
+          </div>
+        </div>
+
+      </div>
+
+      {/* Analisis Butir Jawaban Siswa */}
+      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 print:break-inside-avoid">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b border-slate-50 pb-5 gap-2">
+          <div>
+            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Analisis Lembar Jawaban</h3>
+            <p className="text-sm text-slate-500">Koreksi mendalam per butir soal</p>
+          </div>
+          <div className="flex items-center bg-slate-100 px-4 py-1.5 rounded-xl">
+             <span className="text-sm font-bold text-slate-600">Total {jawaban?.length || 0} Soal</span>
+          </div>
+        </div>
+
+        {/* Kotak Grid Status Jawaban */}
+        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-10 gap-4">
+          {jawaban && jawaban.map((item, index) => (
+            <div 
+              key={index} 
+              className={`group relative p-4 rounded-2xl border-2 text-center transition-all duration-200 cursor-default print:break-inside-avoid
+                ${item.is_correct === 1 
+                  ? 'bg-emerald-50 border-emerald-100 text-emerald-700 hover:border-emerald-300' 
+                  : 'bg-red-50 border-red-100 text-red-700 hover:border-red-300'}`}
+            >
+              <span className="text-[10px] text-slate-400 font-bold block mb-1 uppercase">No. {index + 1}</span>
+              <span className="text-xl font-black">{item.is_correct === 1 ? '✓' : '✗'}</span>
+              <div className="mt-2 text-[10px] font-mono bg-white/50 rounded py-0.5 border border-black/5 uppercase">
+                 {item.student_answer || '-'}
+              </div>
+              
+              {/* Tooltip sederhana saat hover */}
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 print:hidden">
+                {item.is_correct === 1 ? 'Jawaban Benar' : 'Jawaban Salah'}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Legend */}
+        <div className="mt-10 flex flex-wrap gap-8 text-xs border-t border-slate-50 pt-6 print:break-inside-avoid">
+          <div className="flex items-center gap-3">
+            <span className="w-6 h-6 bg-emerald-100 border-2 border-emerald-300 rounded-lg flex items-center justify-center text-emerald-700 font-bold">✓</span>
+            <span className="text-slate-600 font-bold uppercase tracking-wider">Jawaban Benar</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-6 h-6 bg-red-100 border-2 border-red-300 rounded-lg flex items-center justify-center text-red-700 font-bold">✗</span>
+            <span className="text-slate-600 font-bold uppercase tracking-wider">Salah / Tidak Diisi</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer Print */}
+      <div className="hidden print:block mt-12 text-center text-slate-400 text-[10px]">
+        Laporan ini dicetak secara otomatis melalui sistem CBT Online pada {new Date().toLocaleString('id-ID')}
+      </div>
     </div>
   );
 };

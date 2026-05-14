@@ -24,8 +24,9 @@ import HasilKelas from './pages/hasil/HasilKelas';
 import DaftarHasilUjian from './pages/hasil/DaftarHasilUjian';
 import DetailSiswa from './pages/hasil/DetailSiswa';
 
-// === BUAT KONEKSI SOCKET DI LUAR APP ===
-const socket = io('http://localhost:5000'); 
+
+const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'; 
+const socket = io(backendUrl); 
 
 function App() {
   return (
@@ -62,7 +63,7 @@ function App() {
 
                 <Route path="/hasil/ujian" element={<DaftarHasilUjian />} />
                 <Route path="/hasil/kelas/:exam_id" element={<HasilKelas />} />
-                <Route path="/hasil/siswa/:student_exam_id" element={<DetailSiswa />} />
+                <Route path="/hasil/siswa-detail/:student_exam_id" element={<DetailSiswa />} />
                 
                 <Route path="exams" element={<ManajemenUjian />} /> 
                 <Route path="exams/:examId/questions" element={<BankSoalList />} /> 

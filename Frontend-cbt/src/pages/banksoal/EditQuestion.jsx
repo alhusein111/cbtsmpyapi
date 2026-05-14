@@ -69,8 +69,7 @@ const EditQuestion = () => {
                 teks_opsi: opt.teks_opsi || '',
                 is_correct: opt.is_correct == 1 || opt.is_correct === true,
                 file_gambar: null, 
-                // PERBAIKAN: Mapping gambar opsi lama jika ada di database
-                preview_gambar: opt.gambar_opsi ? `http://localhost:5000${opt.gambar_opsi}` : null,
+                preview_gambar: opt.gambar_opsi ? `${import.meta.env.VITE_API_URL}${opt.gambar_opsi}` : null,
                 gambar_lama: opt.gambar_opsi || null 
               }));
               setOptions(formattedOptions.length > 0 ? formattedOptions : options);

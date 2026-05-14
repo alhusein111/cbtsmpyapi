@@ -1,5 +1,8 @@
+// 👇 PERUBAHAN DISINI (1):
+// Hapus import axios bawaan, ganti dengan import api dari axiosConfig
+// Pastikan path (lokasi folder) './axiosConfig' sesuai dengan struktur folder mas brow!
+import api from '../api/axiosConfig'; 
 import { createContext, useState, useEffect, useContext } from 'react';
-import axios from 'axios'; 
 
 // 1. Buat Context
 const SettingsContext = createContext();
@@ -13,14 +16,16 @@ export const SettingsProvider = ({ children }) => {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const response = await axios.get('http://localhost:5000/api/settings'); 
+                // 👇 PERUBAHAN DISINI (2): 
+                // Ganti 'axios' menjadi 'api', dan cukup tulis '/api/settings'
+                const response = await api.get('/api/settings'); 
                 
                 const dataPengaturan = response.data.data;
                 setSettings(dataPengaturan);
                 setActiveYear(response.data.activeYear);
                 setActiveYearId(response.data.activeYearId);
 
-                // 👇 SIMPAN LANGSUNG KE LOCAL STORAGE SAAT PERTAMA KALI LOAD
+                // SIMPAN LANGSUNG KE LOCAL STORAGE SAAT PERTAMA KALI LOAD
                 if (response.data.activeYearId) {
                     localStorage.setItem('activeYearId', response.data.activeYearId);
                 }
@@ -40,7 +45,12 @@ export const SettingsProvider = ({ children }) => {
                         link.rel = 'icon';
                         document.getElementsByTagName('head')[0].appendChild(link);
                     }
-                    link.href = `http://localhost:5000/uploads/logos/${dataPengaturan.logo_sekolah}`; 
+                    
+                    // 👇 PERUBAHAN DISINI (3): 
+                    // Karena Favicon bukan panggilan API (Axios), kita harus ambil URL-nya dari Vite .env
+                    // Menggunakan import.meta.env.VITE_API_URL yang sudah mas brow siapkan
+                    const BASE_URL = import.meta.env.VITE_API_URL;
+                    link.href = `${BASE_URL}/uploads/logos/${dataPengaturan.logo_sekolah}`; 
                 }
 
             } catch (error) {

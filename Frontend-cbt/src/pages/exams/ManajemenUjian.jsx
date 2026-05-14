@@ -106,7 +106,9 @@ const ManajemenUjian = () => {
   };
 
   const handleExportExcel = (examId) => {
-    window.open(`http://localhost:5000/api/exams/export/${examId}`, '_blank'); 
+  // 👇 PERBAIKAN DISINI: Ambil base URL dari .env, lalu gabungkan dengan endpoint
+  const backendUrl = import.meta.env.VITE_API_URL;
+  window.open(`${backendUrl}/api/exams/export/${examId}`, '_blank'); 
   };
 
   const handleCheckboxChange = (e, classId) => {

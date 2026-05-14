@@ -5,7 +5,7 @@ const Topbar = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
 
   return (
-    <header className="bg-surface-container-lowest text-primary font-medium border-b border-outline-variant flex justify-between items-center h-16 px-6 w-full sticky top-0 z-40">
+    <header className="bg-surface-container-lowest text-primary font-medium border-b border-outline-variant flex justify-between items-center h-16 px-6 w-full sticky top-0 z-40 print:hidden">
       
       {/* Mobile Menu Button & Brand */}
       <div className="flex items-center gap-4">

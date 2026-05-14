@@ -4,7 +4,10 @@ import { LayoutDashboard, Users, Briefcase, BookOpen, Settings, Activity, FileTe
 
 const Sidebar = ({ isOpen }) => {
   const { settings } = useSettings();
-  const backendBaseUrl = 'http://localhost:5000/uploads/logos/';
+  
+  // 👇 PERUBAHAN DISINI:
+  // Ganti hardcode localhost dengan variabel dari .env
+  const backendBaseUrl = `${import.meta.env.VITE_API_URL}/uploads/logos/`;
 
   let userRole = localStorage.getItem('role');
 
@@ -19,6 +22,7 @@ const Sidebar = ({ isOpen }) => {
       }
     }
   }
+  
 
   const finalRole = userRole ? String(userRole).replace(/['"]/g, '').toLowerCase() : 'tidak_diketahui';
   
@@ -40,7 +44,7 @@ const Sidebar = ({ isOpen }) => {
   });
 
   return (
-    <aside className={`bg-surface-container-lowest flex-col z-50 h-screen w-65 border-r border-outline-variant fixed left-0 top-0 transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:flex`}>
+    <aside className={`bg-surface-container-lowest flex-col z-50 h-screen w-65 border-r border-outline-variant fixed left-0 top-0 transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:flex print:hidden`}>
       
       {/* 🏫 HEADER / LOGO SEKOLAH DINAMIS */}
       <div className="p-4 border-b border-outline-variant flex items-center gap-3">

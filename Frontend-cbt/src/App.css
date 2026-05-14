@@ -182,3 +182,24 @@
     border-right-color: var(--border);
   }
 }
+
+@media print {
+  /* Menyembunyikan elemen header, sidebar, atau navigasi atas */
+  header, nav, aside {
+    display: none !important;
+  }
+
+  /* Memaksa elemen utama (body, root, dan container) untuk memanjang penuh tanpa batas dan tanpa scroll */
+  body, html, #root, main, .overflow-y-auto {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    overflow-y: visible !important;
+  }
+
+  /* Mencegah konten terpotong di tengah-tengah kotak saat pindah halaman */
+  .break-inside-avoid {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}

@@ -13,13 +13,11 @@ const stripHtml = (html) => {
   return tmp.textContent || tmp.innerText || "";
 };
 
-// Fungsi untuk memperbaiki relative path gambar (e.g. src="/uploads/...")
-// menjadi absolute URL (e.g. src="http://localhost:5000/uploads/...")
 const fixHTMLContent = (htmlString) => {
   if (!htmlString) return '';
   
   // Sesuaikan URL ini dengan port/host Backend Anda!
-  const backendUrl = 'http://localhost:5000'; 
+  const backendUrl = import.meta.env.VITE_API_URL;
   
   // Asumsi folder penyimpanan gambar Anda di backend adalah 'uploads'
   return htmlString.replace(/src="\/uploads/g, `src="${backendUrl}/uploads/soal`);

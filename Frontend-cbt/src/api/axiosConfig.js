@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// Buat instance axios dengan URL dasar backend Mas Brow
+const API_URL = import.meta.env.VITE_API_URL;
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000', // Sesuaikan dengan port backend Mas Brow
+  baseURL: API_URL
 });
 
 // Tambahkan "Satpam" (Interceptor) untuk setiap R E Q U E S T
