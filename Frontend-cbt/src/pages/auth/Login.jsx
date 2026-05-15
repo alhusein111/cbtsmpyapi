@@ -78,11 +78,12 @@ const Login = () => {
 
       const data =  response.data;
 
-      if (response.ok && data.success) {
+      if (data.success) {
         const userData = {
           ...data.data,
           role: selectedRole
         };
+        // Panggil fungsi login dari AuthContext yang akan mengarahkan ke /dashboard
         login(data.token, userData);
       } else {
         setError(data.message || 'Gagal masuk. Periksa kembali data Anda.');
