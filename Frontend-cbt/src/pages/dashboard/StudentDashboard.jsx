@@ -5,7 +5,7 @@ import {
   LayoutGrid, List, BookOpen, Calculator, FlaskConical, 
   Globe, FileText, Activity, RefreshCw,
   Landmark, BookText, Palette, Dumbbell, Monitor, 
-  MessageSquare, BookMarked, Languages, Users, Heart
+  MessageSquare, BookMarked, Languages, Users, Heart, XCircle
 } from 'lucide-react';
 import api from '../../api/axiosConfig';
 import { toast } from 'sonner';
@@ -110,7 +110,11 @@ const StudentDashboard = () => {
           id: exam.id, 
           nama_ujian: exam.nama_ujian || 'Ujian CBT',
           min_work_time: exam.min_work_time || 0,
-          is_done: exam.status_pengerjaan === 'Selesai'
+          is_done: exam.status_pengerjaan === 'Selesai',
+          // Tangkap status waktu dari backend
+          status_waktu: exam.status_waktu,
+          // Ujian siap dikerjakan JIKA waktunya pas DAN siswa belum menyelesaikannya
+          is_ready: exam.status_waktu === 'Bisa Dikerjakan' && exam.status_pengerjaan !== 'Selesai'
         }));
         setExams(mappedExams);
 
@@ -204,15 +208,9 @@ const StudentDashboard = () => {
     return { icon: FileText, color: 'from-slate-600 to-slate-800', bg: 'bg-slate-100', text: 'text-slate-600' };
   };
 
-  // 4. LOGIKA FILTER: H-2 Menit
-  const visibleExams = exams.filter(exam => {
-    if (exam.is_done) return true;
-    const examDateStr = exam.tanggal_ujian.split('T')[0]; 
-    const examStartDateTime = new Date(`${examDateStr}T${exam.waktu_mulai}`);
-    if (isNaN(examStartDateTime.getTime())) return false; 
-    const diffMinutes = (examStartDateTime - currentTime) / (1000 * 60);
-    return diffMinutes <= 2; 
-  });
+  // 4. LOGIKA FILTER: Tampilkan semua jadwal hari ini
+  // (Karena status penguncian tombol sudah diurus oleh Backend)
+  const visibleExams = exams;
 
   // --- LOGIKA PENCARIAN & PAGINASI ---
   const filteredExams = completedExams.filter(log => {
@@ -362,7 +360,7 @@ const StudentDashboard = () => {
                           <Calendar size={14} className="text-slate-400"/> {new Date(exam.tanggal_ujian).toLocaleDateString('id-ID')}
                         </div>
                         <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600">
-                          <Clock size={14} className="text-slate-400"/> {exam.waktu_mulai} - {exam.waktu_selesai} WIB
+                          <Clock size={14} className="text-slate-400"/> {exam.waktu_mulai ? exam.waktu_mulai.substring(0, 5) : '-'} - {exam.waktu_selesai ? exam.waktu_selesai.substring(0, 5) : '-'} WIB
                         </div>
                         <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600">
                           <Activity size={14} className="text-slate-400"/> {exam.durasi} Menit (Min: {exam.min_work_time}m)
@@ -370,15 +368,23 @@ const StudentDashboard = () => {
                       </div>
 
                       <div className="mt-5 pt-4 border-t border-slate-100">
-                        {exam.is_done ? (
-                          <button disabled className="w-full py-2.5 sm:py-3 bg-emerald-50 text-emerald-600 rounded-xl font-bold flex items-center justify-center gap-2 cursor-not-allowed text-sm">
-                            <CheckCircle2 size={16} /> Selesai Dikerjakan
-                          </button>
-                        ) : (
-                          <button onClick={() => handleStartExam(exam)} className="w-full py-2.5 sm:py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm transition-all hover:shadow-indigo-200 text-sm">
-                            <PlayCircle size={16} /> Mulai Ujian
-                          </button>
-                        )}
+                          {exam.is_done ? (
+                              <button disabled className="w-full py-2.5 sm:py-3 bg-emerald-50 text-emerald-600 rounded-xl font-bold flex items-center justify-center gap-2 cursor-not-allowed text-sm">
+                                  <CheckCircle2 size={16} /> Selesai Dikerjakan
+                              </button>
+                          ) : exam.status_waktu === 'Belum Waktunya' ? (
+                              <button disabled className="w-full py-2.5 sm:py-3 bg-slate-100 text-slate-500 rounded-xl font-bold flex items-center justify-center gap-2 cursor-not-allowed text-sm">
+                                  <Clock size={16} /> Mulai Pukul: {exam.waktu_mulai ? exam.waktu_mulai.substring(0, 5) : '-'}
+                              </button>
+                          ) : exam.status_waktu === 'Waktu Habis' ? (
+                              <button disabled className="w-full py-2.5 sm:py-3 bg-rose-50 text-rose-600 rounded-xl font-bold flex items-center justify-center gap-2 cursor-not-allowed text-sm">
+                                  <XCircle size={16} /> Waktu Sudah Habis
+                              </button>
+                          ) : (
+                              <button onClick={() => handleStartExam(exam)} className="w-full py-2.5 sm:py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm transition-all hover:shadow-indigo-200 text-sm">
+                                  <PlayCircle size={16} /> Mulai Ujian
+                              </button>
+                          )}
                       </div>
                     </div>
                   </div>
@@ -419,15 +425,23 @@ const StudentDashboard = () => {
                           </td>
                           <td className="px-4 sm:px-6 py-3 sm:py-4 font-medium text-slate-600 text-xs sm:text-sm">{exam.durasi} Menit</td>
                           <td className="px-4 sm:px-6 py-3 sm:py-4 text-center">
-                            {exam.is_done ? (
-                              <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-emerald-50 text-emerald-600 rounded-md text-[10px] sm:text-xs font-bold">
-                                <CheckCircle2 size={12} className="sm:w-3.5 sm:h-3.5" /> Selesai
-                              </span>
-                            ) : (
-                              <button onClick={() => handleStartExam(exam)} className="px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 sm:gap-1.5 mx-auto transition-colors">
-                                <PlayCircle size={12} className="sm:w-3.5 sm:h-3.5" /> Mulai
-                              </button>
-                            )}
+                              {exam.is_done ? (
+                                  <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-emerald-50 text-emerald-600 rounded-md text-[10px] sm:text-xs font-bold">
+                                      <CheckCircle2 size={12} className="sm:w-3.5 sm:h-3.5" /> Selesai
+                                  </span>
+                              ) : exam.status_waktu === 'Belum Waktunya' ? (
+                                  <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-slate-100 text-slate-500 rounded-md text-[10px] sm:text-xs font-bold">
+                                      <Clock size={12} className="sm:w-3.5 sm:h-3.5" /> {exam.waktu_mulai ? exam.waktu_mulai.substring(0, 5) : '-'}
+                                  </span>
+                              ) : exam.status_waktu === 'Waktu Habis' ? (
+                                  <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-rose-50 text-rose-600 rounded-md text-[10px] sm:text-xs font-bold">
+                                      <XCircle size={12} className="sm:w-3.5 sm:h-3.5" /> Habis
+                                  </span>
+                              ) : (
+                                  <button onClick={() => handleStartExam(exam)} className="px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] sm:text-xs font-bold flex items-center justify-center gap-1 sm:gap-1.5 mx-auto transition-colors">
+                                      <PlayCircle size={12} className="sm:w-3.5 sm:h-3.5" /> Mulai
+                                  </button>
+                              )}
                           </td>
                         </tr>
                       );

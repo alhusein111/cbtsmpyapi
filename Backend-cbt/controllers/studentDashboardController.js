@@ -15,19 +15,27 @@ const getDashboardSiswa = async (req, res) => {
         const [tahunAjaranData] = await connection.query('SELECT id FROM academic_years WHERE is_active = 1 LIMIT 1');
         const activeAcademicYearId = tahunAjaranData.length > 0 ? tahunAjaranData[0].id : null;
 
-        // 3. Query Sapu Jagat (Jadwal Ujian Aktif Hari Ini)
+        // 3. Query Sapu Jagat (Jadwal Ujian Aktif Hari Ini + Filter Waktu)
         const query = `
             SELECT 
                 e.id, e.kelas_peserta, e.academic_year_id,
                 s.nama_mapel, et.nama_ujian,
                 e.tanggal_ujian, e.waktu_mulai, e.waktu_selesai, e.durasi, e.min_work_time,
-                COALESCE(se.status, 'Belum Mulai') AS status_pengerjaan
+                COALESCE(se.status, 'Belum Mulai') AS status_pengerjaan,
+                -- Tambahan: Deteksi Status Waktu Real-time
+                CASE 
+                    WHEN CURTIME() < e.waktu_mulai THEN 'Belum Waktunya'
+                    WHEN CURTIME() > e.waktu_selesai THEN 'Waktu Habis'
+                    ELSE 'Bisa Dikerjakan'
+                END AS status_waktu
             FROM exams e
             LEFT JOIN subjects s ON e.subject_id = s.id
             LEFT JOIN exam_types et ON e.exam_type_id = et.id
             LEFT JOIN student_exams se ON e.id = se.exam_id AND se.siswa_id = ?
             WHERE e.is_active = 1 
               AND DATE(e.tanggal_ujian) = CURDATE()
+              -- (Opsional) Hapus tanda '//' di bawah ini jika ujian yang "Waktu Habis" ingin dihilangkan sepenuhnya dari layar:
+              -- AND CURTIME() <= e.waktu_selesai 
             ORDER BY e.waktu_mulai ASC
         `;
         
