@@ -172,8 +172,21 @@ const ManajemenKelasMapel = () => {
     }
   };
 
+  // PERBAIKAN 1: Amankan logika filter pencarian dari data bertipe Object
   const filteredData = activeTab === 'kelas' 
-    ? classes.filter(c => c.nama_kelas?.toLowerCase().includes(searchTerm.toLowerCase()) || c.wali_kelas?.toLowerCase().includes(searchTerm.toLowerCase()))
+    ? classes.filter(c => {
+        const matchKelas = c.nama_kelas?.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        let waliNama = '';
+        if (typeof c.wali_kelas === 'string') {
+          waliNama = c.wali_kelas;
+        } else if (c.wali_kelas && typeof c.wali_kelas === 'object') {
+          waliNama = c.wali_kelas.nama_lengkap || c.wali_kelas.nama || '';
+        }
+        
+        const matchWali = waliNama.toLowerCase().includes(searchTerm.toLowerCase());
+        return matchKelas || matchWali;
+      })
     : subjects.filter(s => s.nama_mapel?.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const limit = itemsPerPage === 'Semua' ? filteredData.length : parseInt(itemsPerPage);
@@ -275,7 +288,7 @@ const ManajemenKelasMapel = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[800px] text-left text-sm">
               <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                 <tr>
                   {activeTab === 'kelas' ? (
@@ -297,26 +310,31 @@ const ManajemenKelasMapel = () => {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <tr><td colSpan={5} className="py-12 text-center text-slate-400 font-medium">Memuat data dari server...</td></tr>
-                ) : currentItems.length === 0 ? (
-                  <tr><td colSpan={5} className="py-12 text-center text-slate-400 font-medium">Data tidak ditemukan.</td></tr>
+                  <tr>
+                    <td colSpan={activeTab === 'kelas' ? 5 : 3} className="text-center py-10 text-slate-400">Memuat data...</td>
+                  </tr>
                 ) : activeTab === 'kelas' ? (
                   currentItems.map(item => (
                     <tr key={item.id} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                          <Layers size={16} className="text-amber-500"/> Kelas {item.tingkat}
+                          <Layers size={16} className="text-amber-500 shrink-0"/> Kelas {item.tingkat}
                         </div>
                       </td>
-                      <td className="px-6 py-4 font-bold text-primary text-base">{item.nama_kelas}</td>
-                      <td className="px-6 py-4">
-                        {item.wali_kelas ? (
+                      <td className="px-6 py-4 font-bold text-primary text-base whitespace-nowrap">{item.nama_kelas}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {/* PERBAIKAN 2: Pastikan wali_kelas ada dan bukan merupakan Object kosong {} */}
+                        {item.wali_kelas && (typeof item.wali_kelas === 'string' || (typeof item.wali_kelas === 'object' && Object.keys(item.wali_kelas).length > 0)) ? (
                           <div className="flex items-center gap-2 text-slate-700 font-medium">
-                            <UserCircle size={18} className="text-emerald-500"/> {item.wali_kelas}
+                            <UserCircle size={18} className="text-emerald-500 shrink-0"/> 
+                            {/* Ekstrak string jika tipenya adalah Object */}
+                            {typeof item.wali_kelas === 'object' 
+                              ? item.wali_kelas.nama_lengkap || item.wali_kelas.nama || 'Object Data'
+                              : item.wali_kelas}
                           </div>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                            <UserCircle size={14}/> Belum diatur
+                            <UserCircle size={14} className="shrink-0"/> Belum diatur
                           </span>
                         )}
                       </td>

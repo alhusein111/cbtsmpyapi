@@ -295,7 +295,8 @@ const ManajemenStaf = () => {
         </div>
 
         <div className="overflow-x-auto min-h-75">
-          <table className="w-full text-left text-sm text-slate-700">
+          {/* TAMBAHAN: Tambahkan min-w-[800px] atau min-w-max agar tabel bisa di-scroll ke kanan di HP */}
+          <table className="w-full min-w-[800px] text-left text-sm text-slate-700">
             <thead className="bg-white text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-200">
               <tr>
                 <th className="px-6 py-5">NUPTK / ID</th>
@@ -313,13 +314,14 @@ const ManajemenStaf = () => {
               ) : (
                 currentItems.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-slate-600">{item.nuptk || '-'}</td>
-                    <td className="px-6 py-4">
+                    {/* TAMBAHAN: whitespace-nowrap agar teks tidak turun ke bawah */}
+                    <td className="px-6 py-4 font-medium text-slate-600 whitespace-nowrap">{item.nuptk || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <img 
                           src={`https://api.dicebear.com/7.x/initials/svg?seed=${item.nama_lengkap}&backgroundColor=0f172a,059669,2563eb&textColor=ffffff`} 
                           alt={item.nama_lengkap} 
-                          className="w-10 h-10 rounded-full shadow-sm" 
+                          className="w-10 h-10 rounded-full shadow-sm shrink-0" 
                         />
                         <div>
                           <p className="font-bold text-on-surface text-sm">{item.nama_lengkap}</p>
@@ -327,11 +329,11 @@ const ManajemenStaf = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">{formatRole(item.role)}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">{formatRole(item.role)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className="bg-emerald-100/50 text-emerald-600 px-3 py-1 text-[11px] font-bold uppercase rounded-full border border-emerald-200">Aktif</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => handleOpenEdit(item)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
                           <Edit size={16} />

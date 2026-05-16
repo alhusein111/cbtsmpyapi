@@ -234,7 +234,7 @@ const AdminDashboard = ({ socket }) => {
         {/* BarChart (Average Scores) */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center justify-between">
-            Average Scores per Subject
+            Rata-rata Nilai per Mata Pelajaran
             <span className="text-slate-400 cursor-pointer">⋮</span>
           </h3>
           <div className="h-72 w-full">
@@ -256,7 +256,7 @@ const AdminDashboard = ({ socket }) => {
 
         {/* PieChart (Exam Completion Donut) */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-          <h3 className="text-lg font-bold text-slate-800 mb-2">Exam Completion</h3>
+          <h3 className="text-lg font-bold text-slate-800 mb-2">Ujian Selesai</h3>
           <div className="flex-1 w-full flex flex-col justify-center items-center relative min-h-75">
             {dataUjian.length > 0 ? (
               <>

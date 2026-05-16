@@ -265,7 +265,7 @@ const BankSoalList = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto h-fit">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
@@ -303,10 +303,10 @@ const BankSoalList = () => {
               ) : (
                 currentItems.map((q, index) => (
                   <tr key={q.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                    <td className="p-4 text-center font-medium text-slate-500">
+                    <td className="p-4 align-top text-center font-medium text-slate-500">
                       {indexOfFirstItem + index + 1}
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 align-top">
                       <span className={`px-2.5 py-1 text-xs font-bold rounded-md 
                         ${q.tipe_soal === 'PG' ? 'bg-blue-50 text-blue-700' : 
                           q.tipe_soal === 'BS' ? 'bg-emerald-50 text-emerald-700' : 
@@ -314,11 +314,11 @@ const BankSoalList = () => {
                         {q.tipe_soal === 'PG' ? 'Pilihan Ganda' : q.tipe_soal === 'BS' ? 'Benar Salah' : q.tipe_soal === 'MJ' ? 'Menjodohkan' : q.tipe_soal}
                       </span>
                     </td>
-                    <td className="p-4 text-sm text-slate-700">
+                    <td className="p-4 align-top text-sm text-slate-700">
                       {stripHtml(q.teks_soal).substring(0, 100)}...
                     </td>
-                    <td className="p-4 text-center font-medium text-slate-600">{q.bobot}</td>
-                    <td className="p-4 text-center">
+                    <td className="p-4 align-top text-center font-medium text-slate-600">{q.bobot}</td>
+                    <td className="p-4 align-top text-center">
                       <div className="flex justify-center gap-2">
                         <button 
                           onClick={() => navigate(`/exams/${examId}/questions/${q.id}/edit`)}
