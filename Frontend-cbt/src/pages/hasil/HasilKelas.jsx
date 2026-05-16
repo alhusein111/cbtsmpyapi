@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileSpreadsheet, Printer, Search, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { FileSpreadsheet, Printer, Search, ChevronLeft, ChevronRight, Eye, RotateCcw } from 'lucide-react';
 import api from '../../api/axiosConfig';
 import * as XLSX from 'xlsx'; // Import library XLSX
+import Swal from 'sweetalert2';
 
 const HasilKelas = () => {
   const { exam_id } = useParams(); 
@@ -91,6 +92,59 @@ const HasilKelas = () => {
     setCurrentPage(1);
   }, [filterKelas, searchTerm, itemsPerPage]);
 
+
+  // FUNGSI RESET UJIAN SISWA (VERSI SWEETALERT2)
+  const handleResetUjian = async (student_exam_id, namaSiswa) => {
+    // Munculkan popup konfirmasi keren dari SweetAlert2
+    const result = await Swal.fire({
+      title: '⚠️ Peringatan!',
+      text: `Yakin ingin mereset ujian atas nama ${namaSiswa}? Semua nilai dan jawabannya akan dihapus permanen, dan siswa harus mengulang ujian dari awal.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444', // Warna merah (Tailwind red-500)
+      cancelButtonColor: '#64748b', // Warna abu-abu (Tailwind slate-500)
+      confirmButtonText: 'Ya, Reset Ujian!',
+      cancelButtonText: 'Batal'
+    });
+    
+    // Jika admin membatalkan (klik tombol Batal atau klik di luar kotak)
+    if (!result.isConfirmed) return;
+
+    try {
+      // Tampilkan efek loading (opsional tapi bagus)
+      Swal.fire({
+        title: 'Mereset...',
+        text: 'Mohon tunggu sebentar.',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      // Panggil API Backend untuk menghapus data
+      const response = await api.delete(`/api/admin/hasil/kelas/reset/${student_exam_id}`);
+      
+      if (response.data.success) {
+        // Tutup loading dan tampilkan pesan sukses
+        Swal.fire(
+          'Berhasil!',
+          `Ujian milik ${namaSiswa} berhasil direset!`,
+          'success'
+        );
+        
+        // Usir data siswa yang direset dari layar secara instan
+        setDataSiswa(prevData => prevData.filter(siswa => siswa.student_exam_id !== student_exam_id));
+      }
+    } catch (error) {
+      console.error("Gagal mereset ujian:", error);
+      // Tampilkan pesan error jika gagal
+      Swal.fire(
+        'Gagal!',
+        'Terjadi kesalahan saat mereset ujian. Cek koneksi atau server.',
+        'error'
+      );
+    }
+  };
 
   // FUNGSI EXPORT EXCEL (.XLSX) - LOGIKA DISESUAIKAN
   const exportToExcel = () => {
@@ -329,13 +383,25 @@ const HasilKelas = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 print:hidden">
-                      <button 
-                        onClick={() => navigate(`/hasil/siswa-detail/${siswa.student_exam_id}`)} 
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 hover:text-blue-700 rounded-lg transition-colors duration-200"
-                      >
-                        <Eye size={14} />
-                        Detail
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {/* Tombol Detail (Biru) */}
+                        <button 
+                          onClick={() => navigate(`/hasil/siswa-detail/${siswa.student_exam_id}`)} 
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 hover:text-blue-700 rounded-lg transition-colors duration-200"
+                        >
+                          <Eye size={14} />
+                          Detail
+                        </button>
+
+                        {/* Tombol Reset (Merah) */}
+                        <button 
+                          onClick={() => handleResetUjian(siswa.student_exam_id, siswa.nama)} 
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700 rounded-lg transition-colors duration-200"
+                        >
+                          <RotateCcw size={14} />
+                          Reset
+                        </button>
+                      </div>
                     </td>
                 </tr>
                 ))}

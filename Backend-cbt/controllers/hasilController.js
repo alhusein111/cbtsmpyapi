@@ -153,7 +153,7 @@ const hasilController = {
                 return res.status(404).json({ success: false, message: 'Data detail siswa tidak ditemukan' });
             }
 
-    // 2. Ambil data ringkasan ujian (Nilai akhir, KKM, Jumlah Benar/Salah)
+            // 2. Ambil data ringkasan ujian (Nilai akhir, KKM, Jumlah Benar/Salah)
             const [ujianRows] = await db.query(`
                 SELECT 
                     sub.nama_mapel AS title,
@@ -197,11 +197,32 @@ const hasilController = {
                 }
             });
 
+            
+
         } catch (error) {
             console.error('🔴 ERROR di getDetailSiswaUjian:', error);
             res.status(500).json({ success: false, message: 'Gagal mengambil detail jawaban siswa', error: error.message });
         }
+    },
+
+    // 🚀 4. RESET UJIAN SISWA
+    resetUjianSiswa: async (req, res) => {
+        const { student_exam_id } = req.params;
+        
+        try {
+            // 1. Hapus semua coretan jawaban siswa di kertas buram (tabel student_answers)
+            await db.query(`DELETE FROM student_answers WHERE student_exam_id = ?`, [student_exam_id]);
+            
+            // 2. Hapus lembar ujian utamanya (tabel student_exams)
+            await db.query(`DELETE FROM student_exams WHERE id = ?`, [student_exam_id]);
+
+            res.json({ success: true, message: 'Ujian siswa berhasil direset. Siswa bisa ujian kembali!' });
+        } catch (error) {
+            console.error('🔴 ERROR di resetUjianSiswa:', error);
+            res.status(500).json({ success: false, message: 'Gagal mereset ujian siswa', error: error.message });
+        }
     }
+    
 };
 
 // Ekspor objek utamanya langsung

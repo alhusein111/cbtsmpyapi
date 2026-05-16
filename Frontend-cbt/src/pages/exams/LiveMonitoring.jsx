@@ -4,14 +4,24 @@ import api from '../../api/axiosConfig';
 import { 
   Activity, Users, CheckSquare, AlertTriangle, ClipboardList,
   Search, LayoutGrid, List, Clock, MessageSquare, 
-  RefreshCcw, Eye, ArrowRightCircle, CheckCircle2, Unlock, ChevronLeft, ChevronRight
+  RefreshCcw, Eye, ArrowRightCircle, CheckCircle2, Unlock, ChevronLeft, ChevronRight, Calendar
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const LiveMonitoring = ({ socket, examId = 1 }) => { 
+  // --- HELPER UNTUK FORMAT TANGGAL HARI INI (LOCAL TIME) ---
+  const getTodayDateString = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // --- STATE DASAR ---
   const [viewMode, setViewMode] = useState('grid');
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(getTodayDateString()); // Default: Tanggal Sekarang
   const navigate = useNavigate();
 
   const [stats, setStats] = useState({
@@ -59,18 +69,17 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
   // Cari nilai tertinggi untuk kalibrasi tinggi bar chart
   const maxTraffic = Math.max(...trafficData, 5); 
 
-  // --- FETCH DATA (REST API) ---
+  // --- FETCH DATA (REST API DENGAN FILTER TANGGAL) ---
   const fetchMonitoringData = async () => {
     try {
-      if (peserta.length === 0) setIsLoading(true); 
-      const response = await api.get('/api/admin/monitoring');
+      setIsLoading(true); 
+      const response = await api.get(`/api/admin/monitoring?date=${selectedDate}`);
       const payload = response.data?.data || response.data;
 
       if (payload) {
         if (payload.stats) setStats(payload.stats);
         if (payload.peserta) setPeserta(payload.peserta);
         if (payload.logs) setLogs(payload.logs);
-        // Payload.traffic kita abaikan karena sudah digenerate real-time via logic di atas
       }
     } catch (error) {
       console.error("❌ [REST API] Gagal mengambil data Live Monitoring:", error);
@@ -79,17 +88,28 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
     }
   };
 
-  // --- SOCKET LISTENERS ---
+  // --- SOCKET LISTENERS & TRIGGER FETCH DATA ---
   useEffect(() => {
     fetchMonitoringData();
 
     if (!socket) return;
 
     const handleSilentRefresh = () => {
-      fetchMonitoringData();
+      // Refresh diam-diam tanpa merusak state loading jika tanggal yang dibuka adalah hari ini
+      if (selectedDate === getTodayDateString()) {
+        api.get(`/api/admin/monitoring?date=${selectedDate}`).then((response) => {
+          const payload = response.data?.data || response.data;
+          if (payload) {
+            if (payload.stats) setStats(payload.stats);
+            if (payload.peserta) setPeserta(payload.peserta);
+            if (payload.logs) setLogs(payload.logs);
+          }
+        }).catch(err => console.error(err));
+      }
     };
 
     const handleProgressUpdate = (dataUpdate) => {
+      if (selectedDate !== getTodayDateString()) return; // Abaikan update real-time jika melihat histori tanggal lain
       setPeserta((prevPeserta) => 
         prevPeserta.map((p) => {
           if (p.siswa_id === dataUpdate.siswa_id) {
@@ -117,7 +137,7 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
       socket.off('log:new', handleSilentRefresh);
       socket.off('peserta:progress_update', handleProgressUpdate); 
     };
-  }, [socket]);
+  }, [socket, selectedDate]); // Mengulang effect saat tanggal filter diubah
 
   // --- HELPER FUNCTIONS ---
   const getInitials = (name) => {
@@ -190,41 +210,12 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
     return 'bg-emerald-500';
   };
 
-  const handleBukaKunci = async (studentExamId, namaSiswa) => {
-    const konfirmasi = await Swal.fire({
-        title: 'Buka Kunci Ujian?',
-        text: `Apakah Anda yakin ingin membuka kunci ujian untuk ${namaSiswa}? Siswa harus login ulang setelah ini.`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Ya, Buka!',
-        cancelButtonText: 'Batal'
-    });
-
-    if (konfirmasi.isConfirmed) {
-        try {
-            const response = await api.post('/api/admin/exams/reset-siswa', { 
-                student_exam_id: studentExamId 
-            });
-
-            if (response.data.success) {
-                Swal.fire('Berhasil!', response.data.message, 'success');
-            }
-        } catch (error) {
-            console.error('❌ Gagal: buka-kunci', error);
-            Swal.fire('Gagal!', error.response?.data?.message || 'Terjadi kesalahan server.', 'error');
-        }
-    }
-  };
-
   // --- FILTER, PENCARIAN & PAGINASI (DENGAN DEDUPLIKASI) ---
   const [searchTerm, setSearchTerm] = useState('');
   const [kelasFilter, setKelasFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10); 
 
-  // Deduplikasi agar Budi tidak mengganda saat mencari
   const uniquePeserta = useMemo(() => {
     const map = new Map();
     peserta.forEach(p => {
@@ -264,30 +255,39 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
     setCurrentPage(1);
   }, [searchTerm, kelasFilter, itemsPerPage]);
 
-
   return (
     <div className="flex flex-col lg:flex-row gap-6 animate-in fade-in duration-500">
       
       {/* KIRI: AREA UTAMA */}
       <div className="flex-1 space-y-6">
         
-        {/* HEADER */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        {/* HEADER & FILTER TANGGAL SEJAJAR */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
               Monitoring Real-time 
-              <span className="px-2 py-0.5 rounded text-[10px] bg-rose-600 text-white font-black uppercase animate-pulse shadow-[0_0_8px_rgba(225,29,72,0.5)]">Live</span>
+              {selectedDate === getTodayDateString() && (
+                <span className="px-2 py-0.5 rounded text-[10px] bg-rose-600 text-white font-black uppercase animate-pulse shadow-[0_0_8px_rgba(225,29,72,0.5)]">Live</span>
+              )}
             </h1>
-            <p className="text-sm text-slate-500 mt-1">Ujian Aktif: Matematika Semester Ganjil</p>
+            <p className="text-sm text-slate-500 mt-1">Ujian Sesi: {selectedDate === getTodayDateString() ? 'Hari Ini' : selectedDate}</p>
           </div>
-          {/* <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
-            Akhiri Sesi Ujian
-          </button> */}
+          
+          {/* FILTER TANGGAL DI ATAS SEJAJAR KANAN */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 shadow-inner w-full sm:w-auto">
+            <Calendar size={16} className="text-slate-500" />
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:inline">Tanggal Ujian:</span>
+            <input 
+              type="date" 
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer w-full sm:w-auto"
+            />
+          </div>
         </div>
 
         {/* STATS CARDS */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Card 1: Siswa Login */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
             <div className="flex justify-between items-start">
               <div>
@@ -308,7 +308,6 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
             </div>
           </div>
 
-          {/* Card 2: Active Exams */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
             <div className="flex justify-between items-start">
               <div>
@@ -329,7 +328,6 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
             </div>
           </div>
 
-          {/* Card 3: Submit Hari Ini */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
             <div className="flex justify-between items-start">
               <div>
@@ -353,7 +351,6 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
             </div>
           </div>
 
-          {/* Card 4: Pelanggaran (Membaca ujian yang "Terkunci") */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
             <div className="flex justify-between items-start">
               <div>
@@ -376,13 +373,11 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
           </div>
         </div>
 
-        {/* TOOLBAR */}
+        {/* TOOLBAR CONTROLS */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
           <h2 className="text-lg font-bold text-slate-800 whitespace-nowrap">Aktivitas Siswa</h2>
           
           <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
-            
-            {/* Filter: Tampilkan X Entries */}
             <div className="flex items-center text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
                <span className="mr-2">Tampilkan</span>
                <select 
@@ -397,7 +392,6 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                </select>
             </div>
 
-            {/* Filter: Kelas (Hanya muncul jika ada data kelas) */}
             {daftarKelas.length > 0 && (
                 <select 
                   value={kelasFilter} 
@@ -409,7 +403,6 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                 </select>
             )}
 
-            {/* Search Input (Sudah Aktif) */}
             <div className="relative flex-1 sm:min-w-62.5">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input 
@@ -421,7 +414,6 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
               />
             </div>
 
-            {/* View Mode Toggle */}
             <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
               <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                 <LayoutGrid size={18} />
@@ -435,10 +427,10 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
 
         {/* CONTENT SISWA */}
         {isLoading ? (
-          <div className="py-10 text-center text-slate-500 animate-pulse font-medium bg-white rounded-xl border border-slate-200">Memuat data live dari server...</div>
+          <div className="py-10 text-center text-slate-500 animate-pulse font-medium bg-white rounded-xl border border-slate-200">Memuat data monitoring dari server...</div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {paginatedData.length > 0 ? paginatedData.map((p) => { // PERUBAHAN: peserta -> paginatedData
+            {paginatedData.length > 0 ? paginatedData.map((p) => { 
               const totalSoal = p.total_soal || p.totalSoal || 1; 
               let progressPct = p.terjawab ? Math.round((p.terjawab / totalSoal) * 100) : 0;
               if (p.status === 'Selesai' || progressPct > 100) {
@@ -479,6 +471,13 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                       <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                         <CheckCircle2 size={12} /> {p.terjawab || 0} Terjawab
                       </div>
+                      
+                      {/* 🔥 TAMBAHAN DETAIL TANGGAL & WAKTU SELESAI MAPEL 🔥 */}
+                      {p.status === 'Selesai' && p.waktu_selesai_pengerjaan && (
+                        <div className="text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded font-medium inline-block mt-1">
+                          Selesai: {new Date(p.waktu_selesai_pengerjaan).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex gap-2">
@@ -494,7 +493,7 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                       )}
                       {['Login', 'Mengerjakan'].includes(p.status) && (
                           <button onClick={() => handleAksiPeserta(p.student_exam_id, p.siswa_id, 'reset-login')} className="px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
-                          Reset Device
+                            Reset Device
                         </button>
                       )}
                     </div>
@@ -503,7 +502,7 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
               );
             }) : (
               <div className="col-span-full py-10 text-center text-slate-500 bg-white rounded-xl border border-slate-200 font-medium">
-                {searchTerm || kelasFilter ? 'Tidak ada siswa yang sesuai dengan pencarian/filter.' : 'Sesi ujian belum dimulai atau tidak ada peserta.'}
+                {searchTerm || kelasFilter ? 'Tidak ada siswa yang sesuai dengan pencarian/filter.' : 'Tidak ada aktivitas ujian pada tanggal yang dipilih.'}
               </div>
             )}
           </div>
@@ -516,12 +515,12 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                     <th className="px-6 py-4 font-semibold">Siswa</th>
                     <th className="px-6 py-4 font-semibold">Status</th>
                     <th className="px-6 py-4 font-semibold">Progress</th>
-                    <th className="px-6 py-4 font-semibold">Waktu</th>
+                    <th className="px-6 py-4 font-semibold">Waktu / Selesai</th>
                     <th className="px-6 py-4 font-semibold text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {paginatedData.length > 0 ? paginatedData.map((p) => { // PERUBAHAN: peserta -> paginatedData
+                  {paginatedData.length > 0 ? paginatedData.map((p) => { 
                       const totalSoal = p.total_soal || p.totalSoal || 1; 
                       let progressPct = p.terjawab ? Math.round((p.terjawab / totalSoal) * 100) : 0;
                       if (p.status === 'Selesai' || progressPct > 100) {
@@ -549,7 +548,15 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                             <span className="text-xs font-bold text-slate-700">{progressPct}%</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 font-mono text-xs text-slate-600">{displayWaktu}</td>
+                        <td className="px-6 py-4 font-mono text-xs text-slate-600">
+                          <div>{displayWaktu}</div>
+                          {/* 🔥 TAMBAHAN DI TABLE VIEW UNTUK DETAIL TANGGAL SELESAI 🔥 */}
+                          {p.status === 'Selesai' && p.waktu_selesai_pengerjaan && (
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {new Date(p.waktu_selesai_pengerjaan).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                            </div>
+                          )}
+                        </td>
                         <td className="px-6 py-4 flex justify-end gap-2">
                           {p.status === 'Selesai' && (
                             <button onClick={() => navigate(`/hasil/siswa-detail/${p.student_exam_id || p.id}`)} className="px-3 py-1.5 text-xs font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 rounded-lg transition-colors border border-indigo-100">
@@ -572,7 +579,7 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                   }) : (
                     <tr>
                       <td colSpan="5" className="px-6 py-10 text-center text-slate-500 font-medium">
-                         {searchTerm || kelasFilter ? 'Tidak ada siswa yang sesuai dengan pencarian/filter.' : 'Sesi ujian belum dimulai atau tidak ada peserta.'}
+                         {searchTerm || kelasFilter ? 'Tidak ada siswa yang sesuai dengan pencarian/filter.' : 'Tidak ada aktivitas ujian pada tanggal yang dipilih.'}
                       </td>
                     </tr>
                   )}
@@ -600,7 +607,6 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                     </button>
                     
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(num => {
-                      // Logic simpel agar tidak merender ratusan tombol pagination jika datanya banyak sekali
                       if (totalPages > 7 && (num < currentPage - 2 || num > currentPage + 2) && num !== 1 && num !== totalPages) {
                           if (num === currentPage - 3 || num === currentPage + 3) return <span key={num} className="text-slate-400">...</span>;
                           return null;
@@ -641,7 +647,6 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-sm text-slate-800">Traffic Aktivitas</h3>
-            {/* Optional: Tambah animasi putar/pulse saat ada data masuk */}
             <div className={`p-1.5 rounded-full ${trafficData[trafficData.length - 1] > 0 ? 'bg-emerald-100 text-emerald-600 animate-pulse' : 'bg-slate-100 text-slate-400'}`}>
               <Activity size={16} />
             </div>
@@ -649,18 +654,16 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
           
           <div className="flex items-end gap-2 h-32 w-full">
             {trafficData.length > 0 ? trafficData.map((h, i) => {
-              // Hitung persentase tinggi bar berdasarkan aktivitas tertinggi
-              const heightPercentage = Math.max((h / maxTraffic) * 100, 2); // minimal 2% biar tetep kelihatan sedikit garisnya
-
+              const heightPercentage = Math.max((h / maxTraffic) * 100, 2); 
               return (
                 <div key={i} className="flex-1 flex flex-col justify-end items-center group relative" title={`${h} aktivitas`}>
                   <div 
                     className={`w-full rounded-t-sm transition-all duration-300 ${
                       i === trafficData.length - 1 
-                        ? 'bg-emerald-500' // Bar yang sedang berjalan (LIVE)
+                        ? 'bg-emerald-500' 
                         : h > (maxTraffic * 0.7) 
-                          ? 'bg-blue-400 group-hover:bg-blue-500' // Bar tinggi (Aktivitas padat)
-                          : 'bg-slate-200 group-hover:bg-blue-300' // Bar normal
+                          ? 'bg-blue-400 group-hover:bg-blue-500' 
+                          : 'bg-slate-200 group-hover:bg-blue-300' 
                     }`} 
                     style={{ height: `${heightPercentage}%` }}
                   ></div>

@@ -38,37 +38,41 @@ router.post('/peserta/reset-login', adminCtrl.resetLoginDevice);
 // Endpoint Log Siswa
 router.get('/monitoring/log/:exam_id/:siswa_id', checkRole('admin'), monitoringController.getSiswaLogs);
 
-// ✅ [DATA REAL] ENDPOINT UNTUK LIVE MONITORING
+// ✅ [DATA REAL] ENDPOINT MONITORING YANG SUDAH TERFILTER TANGGAL & MENCEGAH DUPLIKASI HISTORI
 router.get('/monitoring', async (req, res) => {
     try {
-        // ✅ 1. AMBIL STATISTIK DARI HELPER
+        // 1. TANGKAP INPUT TANGGAL FILTER (Jika kosong, default pakai hari ini)
+        const targetDate = req.query.date || new Date().toISOString().split('T')[0];
+
+        // 2. AMBIL STATISTIK DARI HELPER
         const dashboardData = await getDashboardStats(db);
 
-        // ==============================================================
-        // 2. AMBIL DATA PESERTA (Perbaikan Progress 100% & Waktu)
-        // ==============================================================
+        // 3. AMBIL DATA PESERTA BERDASARKAN FILTER TANGGAL
+        // Query dimodifikasi pada kondisi LEFT JOIN agar hanya mengikat data student_exams sesuai targetDate.
+        // Klausa WHERE memastikan data masa lampau hanya muncul jika ada track record ujiannya, 
+        // sedangkan untuk hari ini (CURDATE) akan memunculkan semua siswa untuk melihat status "Belum Login".
         const [pesertaRows] = await db.query(`
             SELECT 
                 s.nis AS id, 
                 s.id AS siswa_id,
                 se.id AS student_exam_id, 
                 s.nama, 
+                se.waktu_selesai_pengerjaan, -- 🔥 DIPERLUKAN FRONTEND UNTUK CARD VIEW & TABLE VIEW
                 CASE 
                     WHEN se.status = 'Terkunci' THEN 'Terkunci'
                     WHEN se.status = 'Selesai' THEN 'Selesai'
                     WHEN se.status = 'Mengerjakan' THEN 'Mengerjakan'
-                    WHEN se.status = 'Login' OR s.is_login = 1 THEN 'Login'
+                    WHEN (se.status = 'Login' OR s.is_login = 1) AND (se.id IS NULL OR DATE(se.waktu_mulai_pengerjaan) = CURDATE()) THEN 'Login'
                     ELSE 'Belum Login'
                 END as status,
                 
                 -- Hitung Total Terjawab
                 IFNULL((SELECT COUNT(id) FROM student_answers WHERE student_exam_id = se.id AND (opsi_id IS NOT NULL OR jawaban_matching IS NOT NULL)), 0) AS terjawab, 
                 
-                -- ✅ FIX 1: Total soal BUKAN DARI BANK SOAL, tapi dari jumlah kertas jawaban siswa yang ter-generate!
+                -- Total Soal dari Kertas Jawaban
                 IFNULL((SELECT COUNT(id) FROM student_answers WHERE student_exam_id = se.id), 1) AS total_soal,
                 
-                -- ✅ FIX 2: Progress fleksibel menghitung: (Terjawab / Total Soal Siswa) * 100
-                -- Dikali 100.0 agar SQL tidak membulatkan desimal menjadi 0 sebelum dihitung
+                -- Perhitungan Progress Persentase
                 IFNULL(ROUND(
                     (
                         (SELECT COUNT(id) FROM student_answers WHERE student_exam_id = se.id AND (opsi_id IS NOT NULL OR jawaban_matching IS NOT NULL)) 
@@ -78,14 +82,14 @@ router.get('/monitoring', async (req, res) => {
                     NULLIF((SELECT COUNT(id) FROM student_answers WHERE student_exam_id = se.id), 0)
                 ), 0) AS progress,
 
-                -- Hitung Lama Pengerjaan (Selisih Waktu Selesai - Waktu Mulai)
+                -- Hitung Lama Pengerjaan
                 CASE 
                     WHEN se.status = 'Selesai' AND se.waktu_selesai_pengerjaan IS NOT NULL 
                     THEN TIME_FORMAT(TIMEDIFF(se.waktu_selesai_pengerjaan, se.waktu_mulai_pengerjaan), '%H:%i:%s')
                     ELSE NULL 
                 END AS lama_pengerjaan,
 
-                -- Hitung Sisa Waktu Detik
+                -- Hitung Sisa Waktu Ujian (Detik)
                 CASE 
                     WHEN se.status IN ('Mengerjakan', 'Login', 'Terkunci') AND se.waktu_mulai_pengerjaan IS NOT NULL THEN
                         GREATEST(0, (e.durasi * 60) - TIMESTAMPDIFF(SECOND, se.waktu_mulai_pengerjaan, NOW()))
@@ -93,15 +97,15 @@ router.get('/monitoring', async (req, res) => {
                 END AS sisa_waktu_detik
 
             FROM users_siswa s
-            LEFT JOIN student_exams se ON s.id = se.siswa_id
-            LEFT JOIN exams e ON se.exam_id = e.id -- Join ke exams untuk ambil durasi
-            WHERE s.is_login = 1 OR se.id IS NOT NULL
+            -- 🔥 KUNCI MENCEGAH TIMBUNAN: Filter tanggal langsung diikat di relasi JOIN 
+            LEFT JOIN student_exams se ON s.id = se.siswa_id AND (DATE(se.waktu_mulai_pengerjaan) = ? OR DATE(se.waktu_selesai_pengerjaan) = ?)
+            LEFT JOIN exams e ON se.exam_id = e.id 
+            -- Jika melihat tanggal hari ini, tampilkan semua siswa. Jika melihat histori, tampilkan yang ikut ujian saja.
+            WHERE se.id IS NOT NULL OR (? = CURDATE())
             ORDER BY se.waktu_mulai_pengerjaan DESC, s.nama ASC
-        `);
+        `, [targetDate, targetDate, targetDate]);
 
-        // ==============================================================
-        // 3. AMBIL LOG AKTIVITAS (Tetap sama, tidak ada yang dirubah)
-        // ==============================================================
+        // 4. AMBIL LOG AKTIVITAS 
         const [logRows] = await db.query(`
             SELECT 
                 el.id, 
@@ -112,20 +116,18 @@ router.get('/monitoring', async (req, res) => {
                     WHEN el.event = 'APP_LOGOUT' THEN 'warning'
                     ELSE 'info'
                 END AS type, 
-                
-                -- CONCAT: Gabungkan Nama Siswa dengan isi Log
                 CONCAT(IFNULL(s.nama, 'Sistem'), ' ', LOWER(el.detail)) AS text, 
-                
                 DATE_FORMAT(el.created_at, '%H:%i') AS time 
             FROM exam_logs el
             LEFT JOIN users_siswa s ON el.siswa_id = s.id 
+            WHERE DATE(el.created_at) = ? -- Filter log sesuai tanggal terpilih
             ORDER BY el.created_at DESC 
             LIMIT 20
-        `);
+        `, [targetDate]);
 
         const trafficData = [10, 20, 45, 80, 95, 60, 30, 15, 5];
 
-        // Helper ubah detik ke format Jam:Menit:Detik
+        // Helper konversi detik ke Jam:Menit:Detik
         const formatSisaWaktu = (seconds) => {
             if (seconds <= 0) return "00:00:00";
             const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
@@ -174,13 +176,14 @@ router.get('/tokens', async (req, res) => {
     }
 });
 
-
 // ==========================================
 // --- RUTE HASIL UJIAN ---
 // ==========================================
-router.get('/hasil/daftar-ujian', verifyToken, hasilController.getDaftarUjian);
-router.get('/hasil/kelas/:exam_id', verifyToken, hasilController.getHasilKelas);
-router.get('/hasil/siswa-detail/:student_exam_id', verifyToken, hasilController.getDetailSiswaUjian);
+router.get('/hasil/daftar-ujian', hasilController.getDaftarUjian);
+router.get('/hasil/kelas/:exam_id', hasilController.getHasilKelas);
+router.get('/hasil/siswa-detail/:student_exam_id', hasilController.getDetailSiswaUjian);
 
+// KUNCI UNTUK ADMIN
+router.delete('/hasil/kelas/reset/:student_exam_id', checkRole('admin'), hasilController.resetUjianSiswa);
 
 module.exports = router;
