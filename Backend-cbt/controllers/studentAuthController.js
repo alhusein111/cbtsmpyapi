@@ -137,4 +137,44 @@ const logoutSiswa = async (req, res) => {
     }
 };
 
-module.exports = { loginSiswa, logoutSiswa };
+// FUNGSI: KUNCI AKUN GLOBAL (PELANGGARAN DI DASHBOARD)
+const lockAkunSiswaGlobal = async (req, res) => {
+    const siswaId = req.user.id;
+    const connection = await db.getConnection();
+
+    try {
+        // 1. Kunci akun siswa di tabel users_siswa
+        await connection.query('UPDATE users_siswa SET is_locked = 1 WHERE id = ?', [siswaId]);
+
+        // 2. Ambil nama siswa buat log
+        const [siswaTarget] = await connection.query('SELECT nama FROM users_siswa WHERE id = ?', [siswaId]);
+        const namaSiswa = siswaTarget.length > 0 ? siswaTarget[0].nama : `Siswa`;
+
+        // 3. Catat ke tabel exam_logs (Opsional, sesuaikan dengan struktur tabel mas brow)
+        await connection.query(
+            'INSERT INTO exam_logs (siswa_id, event, detail, created_at) VALUES (?, ?, ?, NOW())',
+            [siswaId, 'VIOLATION_DASHBOARD', `Sistem mengunci akun karena ${namaSiswa} keluar gembok saat di Dashboard.`]
+        );
+
+        // 4. Kasih tau pengawas lewat Socket.io (Biar langsung merah di layar pengawas)
+        const io = req.app.get('io');
+        if (io) {
+            io.to('staff_room').emit('staff:log_new', {
+                type: 'VIOLATION',
+                text: `Pelanggaran: Akun ${namaSiswa} dikunci karena keluar paksa di Dashboard!`,
+                siswa_id: siswaId,
+                time: new Date()
+            });
+        }
+
+        res.json({ success: true, message: 'Akun berhasil dikunci karena pelanggaran.' });
+
+    } catch (error) {
+        console.error('❌ Error Kunci Akun Global:', error);
+        res.status(500).json({ success: false, message: 'Gagal mengunci akun.' });
+    } finally {
+        if (connection) connection.release();
+    }
+};
+
+module.exports = { loginSiswa, logoutSiswa, lockAkunSiswaGlobal };

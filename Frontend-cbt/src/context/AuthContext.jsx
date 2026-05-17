@@ -70,6 +70,10 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('user');
       localStorage.removeItem('role'); 
       
+      // 👇 INI DIA TAMBAHANNYA MAS BROW 👇
+      // Bersihkan ID ujian supaya Android nggak salah paham pas login lagi
+      localStorage.removeItem('student_exam_id'); 
+      
       setUser(null);
       setIsAuthenticated(false);
       navigate('/login', { replace: true }); 

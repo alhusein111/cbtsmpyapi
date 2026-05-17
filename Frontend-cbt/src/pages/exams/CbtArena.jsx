@@ -70,13 +70,18 @@ const CbtArena = () => {
   const [isLocked, setIsLocked] = useState(false); // STATE BARU UNTUK LOCK SYSTEM
 
   useEffect(() => {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-      // PERBAIKAN: Ganti alert dengan SweetAlert2
+    const userAgent = navigator.userAgent;
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+    
+    // Cek KTP Khusus dari aplikasi Android kita
+    const isAppCbt = userAgent.includes("APP_CBT_YAPI");
+
+    // JIKA dia buka di HP, TAPI BUKAN dari aplikasi CBT kita (tidak punya KTP)
+    if (isMobile && !isAppCbt) {
       Swal.fire({
         icon: 'warning',
         title: 'PERINGATAN',
-        text: 'Harap gunakan Aplikasi Mobile CBT untuk mengerjakan ujian di HP!',
+        text: 'Harap gunakan Aplikasi Mobile CBT SMP YAPI untuk mengerjakan ujian di HP!',
         confirmButtonText: 'Mengerti',
         allowOutsideClick: false
       }).then(() => {
@@ -86,10 +91,16 @@ const CbtArena = () => {
   }, [navigate]);
 
   const handleMulaiKlik = async () => {
+    // Cek KTP lagi di sini
+    const isAppCbt = navigator.userAgent.includes("APP_CBT_YAPI");
+
     try {
-      const elem = document.documentElement;
-      if (elem.requestFullscreen) {
-        await elem.requestFullscreen();
+      // HANYA minta HTML5 Fullscreen JIKA BUKAN dari Aplikasi Android kita (misal: pakai PC/Laptop)
+      if (!isAppCbt) {
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+          await elem.requestFullscreen();
+        }
       }
       setIsInLobby(false);
       initExam(); 
@@ -106,6 +117,7 @@ const CbtArena = () => {
       if (resStart.data.success) {
         const dataExam = resStart.data.data;
         setStudentExamId(dataExam.student_exam_id);
+        localStorage.setItem('student_exam_id', dataExam.student_exam_id);
         
         // Asumsi data ini ada dari backend Anda. Jika field-nya beda, sesuaikan namanya (misal: dataExam.nama_mapel)
         setInfoUjian({
@@ -219,7 +231,11 @@ const CbtArena = () => {
 
     // 💡 PERBAIKAN: Hapus !showModalSelesai dari ketiga sensor di bawah ini!
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && !timeOutMode && !isSubmitting) {
+      const isAppCbt = navigator.userAgent.includes("APP_CBT_YAPI");
+      
+      // JANGAN anggap pelanggaran jika itu adalah Aplikasi Android kita. 
+      // Hukum (tendang) HANYA jika pakai browser biasa dan keluar dari mode fullscreen.
+      if (!isAppCbt && !document.fullscreenElement && !timeOutMode && !isSubmitting) {
         handlePelanggaran();
       }
     };
@@ -472,9 +488,8 @@ const CbtArena = () => {
       console.warn("Abaikan error exit fullscreen:", fsError);
     }
     
-    // PERBAIKAN 6: Komentari atau hapus baris ini!
-    // Membiarkannya terbuka menjamin aman sampai pindah rute.
-    // setShowModalSelesai(false); 
+    // 👇 TAMBAHAN WAJIB: Hapus ID ujian biar Android tahu ujian udah beres
+    localStorage.removeItem('student_exam_id'); 
     
     navigate('/dashboard', { replace: true });
   };

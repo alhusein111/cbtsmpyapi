@@ -173,7 +173,7 @@ const Login = () => {
           </div>
 
           {/* Role Selector Tabs */}
-          <div className="space-y-3">
+          <div id="area-pilih-peran" className="space-y-3">
             <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Pilih Peran</label>
             <div className="grid grid-cols-3 gap-3">
               <button 
