@@ -360,15 +360,15 @@ const ManajemenUjian = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-max">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
-                <th className="p-4 font-semibold">Nama Mapel / Ujian</th>
-                <th className="p-4 font-semibold">Kelas</th>
-                <th className="p-4 font-semibold">Guru Pengampu</th>
-                <th className="p-4 font-semibold">Waktu Ujian</th>
-                <th className="p-4 font-semibold text-center">Status</th> 
-                <th className="p-4 font-semibold text-center">Aksi</th>
+                <th className="p-4 font-semibold whitespace-nowrap">Nama Mapel / Ujian</th>
+                <th className="p-4 font-semibold whitespace-nowrap">Kelas</th>
+                <th className="p-4 font-semibold whitespace-nowrap">Guru Pengampu</th>
+                <th className="p-4 font-semibold whitespace-nowrap">Waktu Ujian</th>
+                <th className="p-4 font-semibold text-center whitespace-nowrap">Status</th> 
+                <th className="p-4 font-semibold text-center whitespace-nowrap">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -387,13 +387,13 @@ const ManajemenUjian = () => {
               ) : (
                 currentItems.map((exam) => (
                   <tr key={exam.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                    <td className="p-4">
+                    <td className="p-4 min-w-[250px]">
                       <p className="font-semibold text-indigo-900">{exam.nama_mapel}</p>
                       <p className="text-sm text-slate-500">{exam.nama_ujian}</p>
                     </td>
-                    <td className="p-4 text-sm font-medium">{getDisplayKelas(exam)}</td>
-                    <td className="p-4 text-sm text-slate-600">{exam.nama_guru || '-'}</td>
-                    <td className="p-4">
+                    <td className="p-4 text-sm font-medium whitespace-nowrap">{getDisplayKelas(exam)}</td>
+                    <td className="p-4 text-sm text-slate-600 whitespace-nowrap">{exam.nama_guru || '-'}</td>
+                    <td className="p-4 whitespace-nowrap">
                       <div className="flex items-center gap-1 text-sm text-slate-600 mb-1">
                         <Calendar size={14} /> 
                         {new Date(exam.tanggal_ujian).toLocaleDateString('id-ID')} 
@@ -402,13 +402,13 @@ const ManajemenUjian = () => {
                         <Clock size={14} /> {exam.waktu_mulai} - {exam.waktu_selesai}
                       </div>
                     </td>
-                    <td className="p-4 text-center">
+                    <td className="p-4 text-center whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full ${exam.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                         {exam.is_active ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
                         {exam.is_active ? 'Aktif' : 'Nonaktif'}
                       </span>
                     </td>
-                    <td className="p-4 text-center">
+                    <td className="p-4 text-center whitespace-nowrap">
                       <div className="flex justify-center gap-2">
                         <button onClick={() => navigate(`/exams/${exam.id}/questions`)} className="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded text-sm font-medium flex items-center gap-1.5 transition whitespace-nowrap">
                           <BookOpen size={16} /> Kelola Soal

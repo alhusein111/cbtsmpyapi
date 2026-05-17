@@ -306,7 +306,7 @@ const StudentDashboard = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
               <h3 className="text-lg sm:text-xl font-bold text-slate-800">Jadwal Ujian Hari Ini</h3>
-              <p className="text-xs sm:text-sm text-slate-500">Ujian akan muncul otomatis 2 menit sebelum waktu mulai.</p>
+              <p className="text-xs sm:text-sm text-slate-500">Silahkan Berdo'a dulu sebelum ujian dimulai.</p>
             </div>
             
             <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 shadow-sm self-end sm:self-auto">

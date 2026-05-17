@@ -360,46 +360,50 @@ const handleExportExcel = async (examId, judulUjian = "Ujian") => {
           {viewMode === 'table' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col print:border-0 print:shadow-none print:block print:overflow-visible">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-gray-600 print:text-black">
+                {/* Tambahkan min-w-max agar tabel meregang ke kanan saat di mobile */}
+                <table className="w-full text-left text-sm text-gray-600 print:text-black min-w-max">
                   <thead className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-100 print:bg-gray-200">
                     <tr>
-                      <th className="px-6 py-4 border-b print:border-gray-400">Nama Ujian</th>
-                      <th className="px-6 py-4 border-b print:border-gray-400">Mata Pelajaran</th>
-                      <th className="px-6 py-4 border-b print:border-gray-400">Guru</th>
-                      <th className="px-6 py-4 border-b print:border-gray-400">Tanggal</th>
-                      <th className="px-6 py-4 border-b print:border-gray-400 text-center">Progress Siswa</th>
-                      <th className="px-6 py-4 border-b print:border-gray-400 text-center print:hidden">Aksi</th>
+                      <th className="px-4 py-3 sm:px-6 sm:py-4 border-b print:border-gray-400 whitespace-nowrap">Nama Ujian</th>
+                      <th className="px-4 py-3 sm:px-6 sm:py-4 border-b print:border-gray-400 whitespace-nowrap">Mata Pelajaran</th>
+                      <th className="px-4 py-3 sm:px-6 sm:py-4 border-b print:border-gray-400 whitespace-nowrap">Guru</th>
+                      <th className="px-4 py-3 sm:px-6 sm:py-4 border-b print:border-gray-400 whitespace-nowrap">Tanggal</th>
+                      <th className="px-4 py-3 sm:px-6 sm:py-4 border-b print:border-gray-400 text-center whitespace-nowrap">Progress Siswa</th>
+                      <th className="px-4 py-3 sm:px-6 sm:py-4 border-b print:border-gray-400 text-center print:hidden whitespace-nowrap">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 print:divide-gray-300">
-                    {/* Saat nge-print PDF dari tabel, tampilkan SEMUA hasil yang difilter, bukan cuma current page */}
                     {(window.matchMedia('print').matches ? filteredExams : currentItems).map((exam) => (
                       <tr key={exam.id} className="hover:bg-slate-50 transition print:break-inside-avoid">
-                        <td className="px-6 py-4 font-medium text-gray-800 print:text-black">{exam.judul}</td>
-                        <td className="px-6 py-4">
-                          <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full print:border print:border-gray-300">{exam.mapel || '-'}</span>
+                        <td className="px-4 py-3 sm:px-6 sm:py-4 font-medium text-gray-800 print:text-black min-w-[200px]">
+                          {exam.judul}
                         </td>
-                        <td className="px-6 py-4">{exam.guru || '-'}</td>
-                        <td className="px-6 py-4">{formatDate(exam.tanggal)}</td>
-                        <td className="px-6 py-4 text-center">
+                        <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+                          <span className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full print:border print:border-gray-300">
+                            {exam.mapel || '-'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">{exam.guru || '-'}</td>
+                        <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">{formatDate(exam.tanggal)}</td>
+                        <td className="px-4 py-3 sm:px-6 sm:py-4 text-center whitespace-nowrap">
                           <span className="font-semibold text-gray-700 print:text-black">{exam.selesai || 0}</span>
                           <span className="text-gray-400 print:text-gray-600"> / {exam.total_peserta || 0}</span>
                         </td>
-                        <td className="px-6 py-4 text-center print:hidden">
+                        <td className="px-4 py-3 sm:px-6 sm:py-4 text-center print:hidden whitespace-nowrap">
                           <div className="flex items-center justify-center gap-2">
-                              <button 
-                                  onClick={() => navigate(`/hasil/kelas/${exam.id}`)} 
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition"
-                              >
-                                <BarChart size={14} /> Hasil
-                              </button>
-                              <button 
-                                onClick={() => handleExportExcel(exam.id, exam.judul)} 
-                                className="flex justify-center items-center bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 px-4 py-2 rounded-xl transition text-sm"
-                                title="Export Nilai ke Excel"
-                              >
-                                <FileSpreadsheet size={18} />
-                              </button>
+                            <button 
+                              onClick={() => navigate(`/hasil/kelas/${exam.id}`)} 
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition"
+                            >
+                              <BarChart size={14} /> Hasil
+                            </button>
+                            <button 
+                              onClick={() => handleExportExcel(exam.id, exam.judul)} 
+                              className="flex justify-center items-center bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 px-4 py-2 rounded-xl transition text-sm"
+                              title="Export Nilai ke Excel"
+                            >
+                              <FileSpreadsheet size={18} />
+                            </button>
                           </div>
                         </td>
                       </tr>

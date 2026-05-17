@@ -496,10 +496,11 @@ const ManajemenSiswa = () => {
 
         {/* Table */}
         <div className="overflow-x-auto min-h-75">
-          <table className="w-full text-left text-sm text-slate-700">
+          {/* Tambahkan min-w-max di sini */}
+          <table className="w-full text-left text-sm text-slate-700 min-w-max">
             <thead className="bg-white text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-200">
               <tr>
-                <th scope="col" className="px-6 py-5 w-12">
+                <th scope="col" className="px-4 py-4 sm:px-6 sm:py-5 w-12 whitespace-nowrap">
                   <input 
                     type="checkbox" 
                     onChange={handleSelectAll}
@@ -507,12 +508,12 @@ const ManajemenSiswa = () => {
                     className="rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer w-4 h-4" 
                   />
                 </th>
-                <th scope="col" className="px-6 py-5">ID / NISN</th>
-                <th scope="col" className="px-6 py-5">NAMA LENGKAP</th>
-                <th scope="col" className="px-6 py-5">KELAS</th>
-                <th scope="col" className="px-6 py-5">STATUS</th>
+                <th scope="col" className="px-4 py-4 sm:px-6 sm:py-5 whitespace-nowrap">ID / NISN</th>
+                <th scope="col" className="px-4 py-4 sm:px-6 sm:py-5 whitespace-nowrap">NAMA LENGKAP</th>
+                <th scope="col" className="px-4 py-4 sm:px-6 sm:py-5 whitespace-nowrap">KELAS</th>
+                <th scope="col" className="px-4 py-4 sm:px-6 sm:py-5 whitespace-nowrap">STATUS</th>
                 {userRole === 'admin' && (
-                  <th scope="col" className="px-6 py-5 text-right">AKSI</th>
+                  <th scope="col" className="px-4 py-4 sm:px-6 sm:py-5 text-right whitespace-nowrap">AKSI</th>
                 )}
               </tr>
             </thead>
@@ -524,7 +525,7 @@ const ManajemenSiswa = () => {
               ) : (
                 currentItems.map((item) => (
                   <tr key={item.id} className={`hover:bg-slate-50 transition-colors ${selectedSiswa.includes(item.id) ? 'bg-blue-50/30' : ''}`}>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                       <input 
                         type="checkbox" 
                         checked={selectedSiswa.includes(item.id)}
@@ -532,10 +533,10 @@ const ManajemenSiswa = () => {
                         className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer w-4 h-4" 
                       />
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                       <p className="font-semibold text-slate-600">{item.nisn || '-'}</p>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap min-w-[250px]">
                       <div className="flex items-center gap-3">
                         <img src={`https://api.dicebear.com/7.x/initials/svg?seed=${item.nama}&backgroundColor=0f172a,2563eb,059669&textColor=ffffff`} alt={item.nama} className="w-10 h-10 rounded-full shadow-sm" />
                         <div>
@@ -544,12 +545,12 @@ const ManajemenSiswa = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-semibold text-slate-600">{item.nama_kelas || `ID: ${item.class_id}`}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3 sm:px-6 sm:py-4 font-semibold text-slate-600 whitespace-nowrap">{item.nama_kelas || `ID: ${item.class_id}`}</td>
+                    <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                       {getStatusPill(item.is_login, item.is_locked)}
                     </td>
                     {userRole === 'admin' && (
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => handleOpenEdit(item)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
                             <Edit size={16} />
