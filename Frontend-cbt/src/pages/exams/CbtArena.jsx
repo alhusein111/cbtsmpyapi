@@ -252,20 +252,36 @@ const CbtArena = () => {
       }
     };
 
+    // 🚀 FUNGSI BARU: MENANGKAP TEMBAKAN DARI ANDROID (XIAOMI FLOATING APP)
+    const handleAndroidPelanggaran = (e) => {
+      console.log("ALARM DARI ANDROID: ", e.detail);
+      if (!timeOutMode && !isSubmitting) {
+        handlePelanggaran(); // Langsung eksekusi kunci akun!
+      }
+    };
+
+    // Pemasangan Sensor / Listener Bawaan Mas Brow
     document.addEventListener('contextmenu', preventDefaultActions);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleBlur);
     
+    // 👇 TAMBAHKAN SENSOR ANDROID DI SINI 👇
+    window.addEventListener('pelanggaran_terdeteksi', handleAndroidPelanggaran);
+    
     return () => {
+      // Pembersihan Sensor saat keluar
       document.removeEventListener('contextmenu', preventDefaultActions);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleBlur);
+      
+      // 👇 BERSIHKAN SENSOR ANDROID JUGA 👇
+      window.removeEventListener('pelanggaran_terdeteksi', handleAndroidPelanggaran);
     };
-  }, [isInLobby, timeOutMode, navigate, studentExamId, isLocked, isSubmitting]); // 💡 PERBAIKAN: Hapus showModalSelesai dari dependency array
+  }, [isInLobby, timeOutMode, navigate, studentExamId, isLocked, isSubmitting]);
 
   // === USEEFFECT LOAD SOAL ===
   useEffect(() => {
