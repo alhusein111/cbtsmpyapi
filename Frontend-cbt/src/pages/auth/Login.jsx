@@ -146,7 +146,7 @@ const Login = () => {
             <div className="w-8 h-8 rounded-full bg-blue-300 border-2 border-primary"></div>
             <div className="w-8 h-8 rounded-full bg-blue-200 border-2 border-primary"></div>
           </div>
-          <p>Dipercaya oleh 500+ siswa & staf</p>
+          {/* <p>Dipercaya oleh 500+ siswa & staf</p> */}
         </div>
       </div>
 

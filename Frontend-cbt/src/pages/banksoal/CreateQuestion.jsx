@@ -4,6 +4,7 @@ import 'react-quill-new/dist/quill.snow.css';
 import { Save, Image as ImageIcon, Plus, CheckCircle2, ArrowLeft, Trash2, Link } from 'lucide-react';
 import api from '../../api/axiosConfig';
 import { useParams, useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2'; // 🔥 Import SweetAlert2 di sini
 
 const CreateQuestion = () => {
   const { examId } = useParams();
@@ -119,21 +120,29 @@ const CreateQuestion = () => {
   // --- SAVE DATA ---
   const handleSave = async () => {
     if (!realSubjectId) {
-        return alert('Menunggu data Mata Pelajaran... Silakan coba lagi dalam beberapa detik.');
+        Swal.fire('Mohon Tunggu', 'Menunggu data Mata Pelajaran... Silakan coba lagi dalam beberapa detik.', 'warning');
+        return;
     }
 
     if (!teksSoal.trim() || teksSoal === '<p><br></p>') {
-        return alert('Teks soal tidak boleh kosong!');
+        Swal.fire('Peringatan', 'Teks soal tidak boleh kosong!', 'warning');
+        return;
     }
 
     if (tipeSoal === 'PG' || tipeSoal === 'BS') {
         const hasCorrectAnswer = options.some(opt => opt.is_correct);
-        if (!hasCorrectAnswer) return alert('Pilih minimal satu jawaban benar!');
+        if (!hasCorrectAnswer) {
+            Swal.fire('Peringatan', 'Pilih minimal satu jawaban benar!', 'warning');
+            return;
+        }
     }
 
     if (tipeSoal === 'MJ') {
         const isValid = matchings.every(m => m.kunci_kiri.trim() && m.kunci_kanan.trim());
-        if (!isValid) return alert('Semua pasangan kunci kiri dan kanan harus diisi!');
+        if (!isValid) {
+            Swal.fire('Peringatan', 'Semua pasangan kunci kiri dan kanan harus diisi!', 'warning');
+            return;
+        }
     }
 
     try {
@@ -164,12 +173,13 @@ const CreateQuestion = () => {
 
       await api.post('/api/questions/tambah', formData);
       
-      alert('Mantap! Soal berhasil disimpan.');
+      // 🔥 Menggunakan await agar halaman tidak pindah sebelum user klik OK
+      await Swal.fire('Berhasil!', 'Mantap! Soal berhasil disimpan.', 'success');
       navigate(`/exams/${examId}/questions`); 
       
     } catch (err) {
       console.error(err);
-      alert('Gagal simpan soal: ' + (err.response?.data?.message || err.message));
+      Swal.fire('Gagal!', 'Gagal simpan soal: ' + (err.response?.data?.message || err.message), 'error');
     } finally {
       setIsSaving(false);
     }
@@ -209,7 +219,6 @@ const CreateQuestion = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 min-w-0">
         {/* LEFT COLUMN: Main Editor */}
-        {/* KUNCI: Tambahkan min-w-0 agar kolom tidak membesar melebihi grid */}
         <div className="md:col-span-8 flex flex-col gap-6 min-w-0">
           
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm min-w-0">
@@ -331,7 +340,6 @@ const CreateQuestion = () => {
         </div>
 
         {/* RIGHT COLUMN: Settings & Preview */}
-        {/* KUNCI: Tambahkan min-w-0 agar kolom tidak membesar melebihi grid */}
         <div className="md:col-span-4 flex flex-col gap-6 min-w-0">
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm min-w-0">
             <h3 className="font-semibold text-lg mb-4 flex items-center gap-2 text-slate-800">
@@ -361,7 +369,6 @@ const CreateQuestion = () => {
             
             <div className="p-4 border border-slate-100 rounded-lg bg-slate-50 min-h-50 w-full overflow-hidden flex flex-col flex-1 min-w-0">
               
-              {/* --- BLOK YANG DIPERBAIKI --- */}
               <div 
                 className="text-sm text-slate-700 mb-4 w-full min-w-0 overflow-hidden wrap-break-word **:whitespace-normal! **:wrap-break-word! **:[word-break:break-word]! [&_img]:max-w-full! [&_img]:h-auto! [&_table]:w-full! [&_table]:block! [&_table]:overflow-x-auto!" 
                 style={{ 
@@ -372,7 +379,6 @@ const CreateQuestion = () => {
                 }}
                 dangerouslySetInnerHTML={{ __html: teksSoal || '<p class="text-slate-400 italic">Preview soal akan muncul di sini...</p>' }} 
               />
-              {/* ---------------------------- */}
               
               {(tipeSoal === 'PG' || tipeSoal === 'BS') && (
                 <div className="space-y-2 mt-4 w-full min-w-0">
@@ -384,7 +390,6 @@ const CreateQuestion = () => {
                         </div>
                         
                         <div className="flex-1 min-w-0">
-                          {/* Opsi juga saya amankan sekalian */}
                           <p className="text-xs text-slate-600 pt-1 w-full wrap-break-word whitespace-pre-wrap">
                             {opt.teks_opsi || '...'}
                           </p>

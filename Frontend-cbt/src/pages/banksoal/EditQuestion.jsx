@@ -4,6 +4,7 @@ import 'react-quill-new/dist/quill.snow.css';
 import { Save, Image as ImageIcon, Plus, CheckCircle2, ArrowLeft, Trash2, Link } from 'lucide-react';
 import api from '../../api/axiosConfig';
 import { useParams, useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2'; // <-- Import SweetAlert2
 
 const EditQuestion = () => {
   const { examId, questionId } = useParams();
@@ -85,7 +86,12 @@ const EditQuestion = () => {
         }
       } catch (error) {
         console.error('Gagal mengambil detail soal:', error);
-        alert('Gagal memuat data soal!');
+        // SweetAlert2 ganti alert bawaan
+        Swal.fire({
+          icon: 'error',
+          title: 'Oops...',
+          text: 'Gagal memuat data soal!'
+        });
       } finally {
         setIsLoading(false);
       }
@@ -170,17 +176,47 @@ const EditQuestion = () => {
 
   // --- SAVE DATA (MENGGUNAKAN PUT / UPDATE) ---
   const handleSave = async () => {
-    if (!realSubjectId) return alert('Menunggu data Mata Pelajaran... Silakan coba lagi.');
-    if (!teksSoal.trim() || teksSoal === '<p><br></p>') return alert('Teks soal tidak boleh kosong!');
+    // SweetAlert2 Validasi
+    if (!realSubjectId) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Harap Tunggu',
+        text: 'Menunggu data Mata Pelajaran... Silakan coba lagi.'
+      });
+      return;
+    }
+    
+    if (!teksSoal.trim() || teksSoal === '<p><br></p>') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Perhatian',
+        text: 'Teks soal tidak boleh kosong!'
+      });
+      return;
+    }
 
     if (tipeSoal === 'PG' || tipeSoal === 'BS') {
         const hasCorrectAnswer = options.some(opt => opt.is_correct);
-        if (!hasCorrectAnswer) return alert('Pilih minimal satu jawaban benar!');
+        if (!hasCorrectAnswer) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Perhatian',
+            text: 'Pilih minimal satu jawaban benar!'
+          });
+          return;
+        }
     }
 
     if (tipeSoal === 'MJ') {
         const isValid = matchings.every(m => m.kunci_kiri.trim() && m.kunci_kanan.trim());
-        if (!isValid) return alert('Semua pasangan kunci kiri dan kanan harus diisi!');
+        if (!isValid) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Perhatian',
+            text: 'Semua pasangan kunci kiri dan kanan harus diisi!'
+          });
+          return;
+        }
     }
 
     try {
@@ -212,12 +248,25 @@ const EditQuestion = () => {
 
       await api.put(`/api/questions/${questionId}`, formData);
       
-      alert('Mantap! Perubahan soal berhasil disimpan.');
-      navigate(`/exams/${examId}/questions`); 
+      // SweetAlert2 Sukses dengan auto-redirect
+      Swal.fire({
+        icon: 'success',
+        title: 'Mantap!',
+        text: 'Perubahan soal berhasil disimpan.',
+        showConfirmButton: false,
+        timer: 1500
+      }).then(() => {
+        navigate(`/exams/${examId}/questions`); 
+      });
       
     } catch (err) {
       console.error(err);
-      alert('Gagal update soal: ' + (err.response?.data?.message || err.message));
+      // SweetAlert2 Error Update
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal Menyimpan',
+        text: 'Gagal update soal: ' + (err.response?.data?.message || err.message)
+      });
     } finally {
       setIsSaving(false);
     }

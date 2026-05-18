@@ -421,7 +421,7 @@ const StudentDashboard = () => {
                           <td className="px-4 sm:px-6 py-3 sm:py-4 font-medium text-slate-600 text-xs sm:text-sm">{exam.nama_ujian}</td>
                           <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-600 text-xs sm:text-sm">
                             {new Date(exam.tanggal_ujian).toLocaleDateString('id-ID')} <br/>
-                            <span className="font-mono text-[10px] sm:text-xs text-slate-400">{exam.waktu_mulai} - {exam.waktu_selesai}</span>
+                            <span className="font-mono text-[10px] sm:text-xs text-slate-400">{exam.waktu_mulai ? exam.waktu_mulai.substring(0, 5) : '-'} - {exam.waktu_selesai ? exam.waktu_selesai.substring(0, 5) : '-'}</span>
                           </td>
                           <td className="px-4 sm:px-6 py-3 sm:py-4 font-medium text-slate-600 text-xs sm:text-sm">{exam.durasi} Menit</td>
                           <td className="px-4 sm:px-6 py-3 sm:py-4 text-center">

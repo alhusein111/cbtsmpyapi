@@ -32,7 +32,11 @@ router.use(verifyToken, checkRole('admin', 'guru'));
 // ---------------------------------------------------------
 
 router.get('/dashboard', adminCtrl.getDashboardAdmin);
-router.post('/exams/reset-siswa', adminCtrl.resetSiswaUjian);
+
+// 🔒 TAMBAHKAN checkRole('admin') DI SINI BIAR GURU DITOLAK
+router.post('/exams/reset-siswa', checkRole('admin'), adminCtrl.resetSiswaUjian); 
+
+// ✅ Biarkan yang ini tanpa checkRole khusus agar Guru & Admin tetap bisa akses
 router.post('/peserta/reset-login', adminCtrl.resetLoginDevice);
 
 // Endpoint Log Siswa
@@ -57,12 +61,14 @@ router.get('/monitoring', async (req, res) => {
                 s.id AS siswa_id,
                 se.id AS student_exam_id, 
                 s.nama, 
-                se.waktu_selesai_pengerjaan, -- 🔥 DIPERLUKAN FRONTEND UNTUK CARD VIEW & TABLE VIEW
+                se.waktu_selesai_pengerjaan, 
                 CASE 
-                    WHEN se.status = 'Terkunci' THEN 'Terkunci'
+                    -- 🔥 PERBAIKAN LOGIKA STATUS DI SINI 🔥
+                    WHEN se.status = 'Terkunci' OR s.is_locked = 1 THEN 'Terkunci'
                     WHEN se.status = 'Selesai' THEN 'Selesai'
                     WHEN se.status = 'Mengerjakan' THEN 'Mengerjakan'
-                    WHEN (se.status = 'Login' OR s.is_login = 1) AND (se.id IS NULL OR DATE(se.waktu_mulai_pengerjaan) = CURDATE()) THEN 'Login'
+                    -- Patokan utama "Login (Standby)" HANYA dari s.is_login
+                    WHEN s.is_login = 1 THEN 'Login'
                     ELSE 'Belum Login'
                 END as status,
                 
@@ -97,10 +103,8 @@ router.get('/monitoring', async (req, res) => {
                 END AS sisa_waktu_detik
 
             FROM users_siswa s
-            -- 🔥 KUNCI MENCEGAH TIMBUNAN: Filter tanggal langsung diikat di relasi JOIN 
             LEFT JOIN student_exams se ON s.id = se.siswa_id AND (DATE(se.waktu_mulai_pengerjaan) = ? OR DATE(se.waktu_selesai_pengerjaan) = ?)
             LEFT JOIN exams e ON se.exam_id = e.id 
-            -- Jika melihat tanggal hari ini, tampilkan semua siswa. Jika melihat histori, tampilkan yang ikut ujian saja.
             WHERE se.id IS NOT NULL OR (? = CURDATE())
             ORDER BY se.waktu_mulai_pengerjaan DESC, s.nama ASC
         `, [targetDate, targetDate, targetDate]);

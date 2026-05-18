@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axiosConfig';
 import { 
@@ -34,15 +34,46 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
   const [peserta, setPeserta] = useState([]);
   const [logs, setLogs] = useState([]);
 
-  // --- STATE & LOGIC TRAFFIC AKTIVITAS ---
+// --- STATE & LOGIC TRAFFIC AKTIVITAS ---
   const [trafficData, setTrafficData] = useState(Array(20).fill(0));
   const [trafficStartTime, setTrafficStartTime] = useState('');
+  const lastLogIdRef = useRef(null);
+  const isInitialLoad = useRef(true); // 🔥 Mencegah overwrite saat awal muat halaman
 
-  // Set waktu mulai saat komponen pertama kali dirender
+  // 1. Ambil data lama dari localStorage SETIAP TANGGAL BERUBAH
   useEffect(() => {
-    const now = new Date();
-    setTrafficStartTime(now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
-  }, []);
+    if (!selectedDate) return;
+    
+    isInitialLoad.current = true; // Set true setiap ganti tanggal
+
+    const savedTraffic = localStorage.getItem(`cbt_traffic_data_${selectedDate}`);
+    if (savedTraffic) {
+      setTrafficData(JSON.parse(savedTraffic));
+    } else {
+      setTrafficData(Array(20).fill(0));
+    }
+
+    const savedTime = localStorage.getItem(`cbt_traffic_start_time_${selectedDate}`);
+    if (savedTime) {
+      setTrafficStartTime(savedTime);
+    } else {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      setTrafficStartTime(timeStr);
+      localStorage.setItem(`cbt_traffic_start_time_${selectedDate}`, timeStr);
+    }
+
+    // Beri jeda sedikit agar state selesai ter-update sebelum diizinkan menyimpan
+    setTimeout(() => {
+      isInitialLoad.current = false;
+    }, 100);
+  }, [selectedDate]);
+
+  // 2. Simpan data ke localStorage HANYA JIKA bukan loading awal
+  useEffect(() => {
+    if (isInitialLoad.current || !selectedDate) return;
+    localStorage.setItem(`cbt_traffic_data_${selectedDate}`, JSON.stringify(trafficData));
+  }, [trafficData, selectedDate]);
 
   // TICKING TIMELINE: Geser grafik setiap 10 detik
   useEffect(() => {
@@ -55,18 +86,28 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
     return () => clearInterval(interval);
   }, []);
 
-  // PENDETEKSI AKTIVITAS: Setiap ada update data peserta dari server (Socket/Polling)
+  // PENDETEKSI AKTIVITAS: Berdasarkan LOG NYATA siswa
   useEffect(() => {
-    if (peserta && peserta.length > 0) {
-      setTrafficData(prevData => {
-        const newData = [...prevData];
-        newData[newData.length - 1] += 1; 
-        return newData;
-      });
-    }
-  }, [peserta]); 
+    if (logs && logs.length > 0) {
+      if (lastLogIdRef.current === null) {
+        lastLogIdRef.current = logs[0].id;
+        return;
+      }
 
-  // Cari nilai tertinggi untuk kalibrasi tinggi bar chart
+      const newLogs = logs.filter(log => log.id > lastLogIdRef.current);
+
+      if (newLogs.length > 0) {
+        lastLogIdRef.current = logs[0].id;
+
+        setTrafficData(prevData => {
+          const newData = [...prevData];
+          newData[newData.length - 1] += newLogs.length;
+          return newData;
+        });
+      }
+    }
+  }, [logs]); 
+
   const maxTraffic = Math.max(...trafficData, 5); 
 
   // --- FETCH DATA (REST API DENGAN FILTER TANGGAL) ---
@@ -153,11 +194,11 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
     return colors[index];
   };
 
-  const handleAksiPeserta = async (studentExamId, siswaId, actionType) => {
+const handleAksiPeserta = async (studentExamId, siswaId, actionType) => {
     try {
       if (actionType === 'buka-kunci') {
         await api.post('/api/admin/exams/reset-siswa', { student_exam_id: studentExamId });
-        fetchMonitoringData();
+        await fetchMonitoringData(); // 🔥 Tambahkan await
       } 
       else if (actionType === 'reset-login') {
         const konfirmasi = await Swal.fire({
@@ -171,14 +212,19 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
         });
 
         if (konfirmasi.isConfirmed) {
+          // 1. Tembak API Reset
           await api.post('/api/admin/peserta/reset-login', { id: siswaId });
-          fetchMonitoringData();
+          
+          // 2. 🔥 WAJIB AWAIT: Tunggu sampai data terbaru dari server selesai ditarik
+          await fetchMonitoringData(); 
+          
+          // 3. Baru munculkan notifikasi sukses
           Swal.fire('Berhasil!', 'Device siswa berhasil di-reset.', 'success');
         }
       } 
       else {
         await api.post(`/api/admin/peserta/${actionType}`, { id: siswaId });
-        fetchMonitoringData();
+        await fetchMonitoringData(); // 🔥 Tambahkan await
       }
     } catch (error) {
       console.error(`❌ Gagal: ${actionType}`, error);
@@ -440,17 +486,26 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
 
               return (
                 <div key={p.student_exam_id || p.siswa_id || p.id} className={`bg-white p-5 rounded-2xl border ${p.status === 'Terkunci' ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'} shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between gap-4`}>
-                  <div className="flex justify-between items-start">
-                    <div className="flex gap-3 items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-inner ${getAvatarColor(p.nama)}`}>
+                  
+                  {/* 🔥 PERBAIKAN STRUKTUR HEADER CARD: ANTI BENTROK & TUMPANG TINDIH 🔥 */}
+                  <div className="flex justify-between items-start gap-3 min-w-0 w-full">
+                    <div className="flex gap-3 items-center min-w-0 flex-1">
+                      {/* Avatar dikunci agar tidak mengecil saat nama panjang */}
+                      <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-inner ${getAvatarColor(p.nama)}`}>
                         {getInitials(p.nama)}
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-800 text-sm">{p.nama || 'Tanpa Nama'}</p>
-                        <p className="text-[10px] text-slate-500 font-mono">ID: {p.id || '-'}</p>
+                      {/* Teks nama diberikan batas min-w-0 agar bisa wrap secara rapi */}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-800 text-sm break-words line-clamp-2 leading-tight" title={p.nama}>
+                          {p.nama || 'Tanpa Nama'}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">ID: {p.id || '-'}</p>
                       </div>
                     </div>
-                    {getStatusBadge(p.status)}
+                    {/* Badge dikunci flex-shrink-0 agar bentuknya tidak gepeng tertekan nama */}
+                    <div className="flex-shrink-0 pt-0.5">
+                      {getStatusBadge(p.status)}
+                    </div>
                   </div>
 
                   <div className="space-y-1">
@@ -472,7 +527,6 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                         <CheckCircle2 size={12} /> {p.terjawab || 0} Terjawab
                       </div>
                       
-                      {/* 🔥 TAMBAHAN DETAIL TANGGAL & WAKTU SELESAI MAPEL 🔥 */}
                       {p.status === 'Selesai' && p.waktu_selesai_pengerjaan && (
                         <div className="text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded font-medium inline-block mt-1">
                           Selesai: {new Date(p.waktu_selesai_pengerjaan).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
@@ -539,7 +593,7 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                             <p className="text-[10px] text-slate-500 font-mono">{p.id || '-'}</p>
                           </div>
                         </td>
-                        <td className="px-6 py-4">{getStatusBadge(p.status)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap w-[1%]">{getStatusBadge(p.status)}</td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -550,7 +604,6 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
                         </td>
                         <td className="px-6 py-4 font-mono text-xs text-slate-600">
                           <div>{displayWaktu}</div>
-                          {/* 🔥 TAMBAHAN DI TABLE VIEW UNTUK DETAIL TANGGAL SELESAI 🔥 */}
                           {p.status === 'Selesai' && p.waktu_selesai_pengerjaan && (
                             <div className="text-[10px] text-slate-400 mt-0.5">
                               {new Date(p.waktu_selesai_pengerjaan).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
@@ -644,37 +697,54 @@ const LiveMonitoring = ({ socket, examId = 1 }) => {
       <div className="w-full lg:w-80 space-y-6">
         
         {/* TRAFFIC CHART */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+          
+          {/* Efek visual garis grid tipis di latar belakang agar terlihat seperti grafik sungguhan */}
+          <div className="absolute inset-x-0 top-16 bottom-14 flex flex-col justify-between px-5">
+            <div className="border-t border-slate-100 w-full h-px"></div>
+            <div className="border-t border-slate-100 w-full h-px"></div>
+          </div>
+
+          <div className="flex justify-between items-center mb-6 relative z-10">
             <h3 className="font-bold text-sm text-slate-800">Traffic Aktivitas</h3>
             <div className={`p-1.5 rounded-full ${trafficData[trafficData.length - 1] > 0 ? 'bg-emerald-100 text-emerald-600 animate-pulse' : 'bg-slate-100 text-slate-400'}`}>
               <Activity size={16} />
             </div>
           </div>
           
-          <div className="flex items-end gap-2 h-32 w-full">
-            {trafficData.length > 0 ? trafficData.map((h, i) => {
-              const heightPercentage = Math.max((h / maxTraffic) * 100, 2); 
+          {/* Wadah Utama Grafik */}
+          <div className="flex items-end gap-2 h-32 w-full pt-4 relative z-10">
+            {trafficData.map((h, i) => {
+              
+              // Perhitungan ketinggian (Landasan visual 5% agar batang kosong tetap terlihat estetik)
+              const heightPercentage = Math.max((h / maxTraffic) * 100, 5); 
+              
               return (
-                <div key={i} className="flex-1 flex flex-col justify-end items-center group relative" title={`${h} aktivitas`}>
+                
+                <div key={i} className="flex-1 flex flex-col justify-end items-center group relative h-full" title={`${h} aktivitas`}>
+                  
+                  {/* Tooltip Angka kecil yang muncul saat di-hover */}
+                  <div className="absolute -top-7 bg-slate-800 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 whitespace-nowrap shadow-sm">
+                    {h} Aktivitas
+                  </div>
+
                   <div 
-                    className={`w-full rounded-t-sm transition-all duration-300 ${
+                    className={`w-full rounded-t-sm transition-all duration-300 relative z-10 ${
                       i === trafficData.length - 1 
-                        ? 'bg-emerald-500' 
-                        : h > (maxTraffic * 0.7) 
-                          ? 'bg-blue-400 group-hover:bg-blue-500' 
-                          : 'bg-slate-200 group-hover:bg-blue-300' 
+                        ? h > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-300' // Detik berjalan saat ini
+                        : h > 0 
+                          ? 'bg-blue-400 group-hover:bg-blue-500' // Ada aktivitas siswa
+                          : 'bg-slate-100 group-hover:bg-slate-200' // Batang kosong (Idle), HARUS TERLIHAT!
                     }`} 
-                    style={{ height: `${heightPercentage}%` }}
+                    // 🔥 Tinggi batang dalam persen akan berfungsi jika induknya (di atas) h-full
+                    style={{ height: `${heightPercentage}%` }} 
                   ></div>
                 </div>
               );
-            }) : (
-              <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400">Menunggu data...</div>
-            )}
+            })}
           </div>
           
-          <div className="flex justify-between mt-2 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+          <div className="flex justify-between mt-2 text-[10px] text-slate-500 font-bold uppercase tracking-wider relative z-10">
             <span>{trafficStartTime || "08:00"}</span>
             <span className="text-emerald-600 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> LIVE NOW

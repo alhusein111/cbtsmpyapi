@@ -29,15 +29,15 @@ const mulaiUjian = async (req, res) => {
             LEFT JOIN classes c ON CAST(us.class_id AS CHAR) = CAST(c.id AS CHAR)
             WHERE us.id = ?
         `, [siswaId]);
-        
+
         if (siswaData.length === 0) throw new Error("Data siswa tidak ditemukan.");
-        
+
         const siswa = siswaData[0];
         const classIdParam = JSON.stringify(siswa.class_id); 
 
         const [examData] = await connection.query(`
             SELECT e.id, e.subject_id, e.durasi, e.min_work_time,
-                   et.nama_ujian AS jenis_ujian, s.nama_mapel
+                et.nama_ujian AS jenis_ujian, s.nama_mapel
             FROM exams e
             LEFT JOIN exam_types et ON e.exam_type_id = et.id
             LEFT JOIN subjects s ON e.subject_id = s.id
@@ -55,7 +55,7 @@ const mulaiUjian = async (req, res) => {
             jenis_ujian: exam.jenis_ujian,
             nama_mapel: exam.nama_mapel,
             nama_siswa: siswa.nama_siswa,
-            nis: siswa.nis,
+             nis: siswa.nis,
             no_peserta: siswa.no_peserta,
             kelas: siswa.nama_kelas,
             durasi: exam.durasi,
@@ -67,6 +67,9 @@ const mulaiUjian = async (req, res) => {
             [siswaId, exam_id]
         );
 
+        // ==============================================================
+        // KONDISI 1: SISWA MELANJUTKAN UJIAN (RE-LOGIN / KELUAR ARENA)
+        // ==============================================================
         if (existing.length > 0) {
             if (['Selesai', 'Terkunci'].includes(existing[0].status)) {
                 return res.status(403).json({ 
@@ -74,25 +77,30 @@ const mulaiUjian = async (req, res) => {
                     message: `Anda tidak dapat masuk. Status ujian Anda saat ini: ${existing[0].status}` 
                 });
             }
-            
-            // ==========================================
+
             // FIX 1: UPDATE STATUS KEMBALI KE 'Mengerjakan' 
-            // ==========================================
             await connection.query(
                 'UPDATE student_exams SET status = "Mengerjakan" WHERE id = ?',
                 [existing[0].id]
             );
-            // ==========================================
-            
+
             const waktuMulaiDB = new Date(existing[0].waktu_mulai_pengerjaan);
             const waktuSekarang = new Date();
             const selisihDetik = Math.floor((waktuSekarang - waktuMulaiDB) / 1000); 
             const durasiTotalDetik = exam.durasi * 60;
-            
+
             let sisaWaktu = durasiTotalDetik - selisihDetik;
             if (sisaWaktu < 0) sisaWaktu = 0;
 
             await insertExamLog(siswaId, exam_id, 'EXAM_RESUME', `${siswa.nama_siswa} kembali masuk (melanjutkan) pengerjaan ujian`);
+
+            // 🟢 TAMBAHAN SOCKET UNTUK KONDISI MELANJUTKAN UJIAN
+            const io = req.app.get('io');
+            if (io) {
+                // Meminta LiveMonitoring untuk silent refresh mengambil data baru ('Mengerjakan')
+                io.emit('peserta:update');
+                io.emit('stats:refresh');
+            }
 
             return res.json({ 
                 success: true, 
@@ -105,16 +113,19 @@ const mulaiUjian = async (req, res) => {
             });
         }
 
+        // ==============================================================
+        // KONDISI 2: SISWA BARU MEMULAI UJIAN (PERTAMA KALI)
+        // ==============================================================
         await connection.beginTransaction();
 
         const [resHeader] = await connection.query(
             `INSERT INTO student_exams (siswa_id, exam_id, status, waktu_mulai_pengerjaan) 
-             VALUES (?, ?, 'Mengerjakan', NOW())`,
+            VALUES (?, ?, 'Mengerjakan', NOW())`,
             [siswaId, exam_id]
         );
-        
+
         const newId = resHeader.insertId;
-        
+ 
         const [questions] = await connection.query(
             'SELECT id FROM questions WHERE subject_id = ?',
             [subjectId]
@@ -134,8 +145,16 @@ const mulaiUjian = async (req, res) => {
         );
 
         await connection.commit();
-        
+
         await insertExamLog(siswaId, exam_id, 'EXAM_START', `${siswa.nama_siswa} memulai pengerjaan ujian`);
+
+        // 🟢 TAMBAHAN SOCKET UNTUK KONDISI MEMULAI UJIAN BARU
+        const io = req.app.get('io');
+        if (io) {
+            // Meminta LiveMonitoring untuk silent refresh mengambil data baru ('Mengerjakan')
+            io.emit('peserta:update');
+            io.emit('stats:refresh');
+        }
 
         return res.json({ 
             success: true, 
