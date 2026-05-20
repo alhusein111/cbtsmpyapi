@@ -232,11 +232,19 @@ const getSoalByNomor = async (req, res) => {
 
         if (soal.tipe_soal === 'MJ') {
             const [matchingData] = await connection.query(
-                'SELECT id, kunci_kiri, kunci_kanan FROM question_matchings WHERE question_id = ?',
+                // 👇 TAMBAHAN: Tarik kolom gambar_kiri dan gambar_kanan dari database
+                'SELECT id, kunci_kiri, kunci_kanan, gambar_kiri, gambar_kanan FROM question_matchings WHERE question_id = ?',
                 [question_id]
             );
-            pilihan = matchingData; 
-        } else {
+            
+            // 👇 TAMBAHAN: Format URL gambar agar tidak error jika pakai relative path
+            pilihan = matchingData.map(match => ({
+                ...match,
+                gambar_kiri: fixImageUrl(match.gambar_kiri),
+                gambar_kanan: fixImageUrl(match.gambar_kanan)
+                }));
+                
+            } else {
             const [optionsData] = await connection.query(
                 'SELECT id, teks_opsi, gambar_opsi FROM question_options WHERE question_id = ?',
                 [question_id]

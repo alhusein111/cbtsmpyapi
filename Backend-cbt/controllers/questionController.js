@@ -54,15 +54,29 @@ const tambahSoal = async (req, res) => {
                     );
                 }
             }
+
         } else if (tipe === 'MJ') {
             if (req.body.matchings) {
                 const matchingList = JSON.parse(req.body.matchings);
                 
-                for (const match of matchingList) {
+                for (let i = 0; i < matchingList.length; i++) {
+                    const match = matchingList[i];
+                    let gambarKiriPath = null;
+                    let gambarKananPath = null;
+
+                    if (req.files && Array.isArray(req.files)) {
+                        const fileKiri = req.files.find(f => f.fieldname === `gambar_kiri_${i}`);
+                        if (fileKiri) gambarKiriPath = `/uploads/soal/${fileKiri.filename}`;
+                        
+                        const fileKanan = req.files.find(f => f.fieldname === `gambar_kanan_${i}`);
+                        if (fileKanan) gambarKananPath = `/uploads/soal/${fileKanan.filename}`;
+                    }
+
+                    // 🔥 PERBAIKAN: Gunakan '|| null' agar jika string kosong (""), disimpan sebagai NULL di DB
                     await connection.query(
-                        `INSERT INTO question_matchings (question_id, kunci_kiri, kunci_kanan) 
-                         VALUES (?, ?, ?)`,
-                        [questionId, match.kunci_kiri, match.kunci_kanan]
+                        `INSERT INTO question_matchings (question_id, kunci_kiri, kunci_kanan, gambar_kiri, gambar_kanan) 
+                        VALUES (?, ?, ?, ?, ?)`,
+                        [questionId, match.kunci_kiri || null, match.kunci_kanan || null, gambarKiriPath, gambarKananPath]
                     );
                 }
             }
@@ -129,13 +143,30 @@ const updateSoal = async (req, res) => {
                     );
                 }
             }
+            
         } else if (tipe === 'MJ') {
             if (req.body.matchings) {
                 const matchingList = JSON.parse(req.body.matchings);
-                for (const match of matchingList) {
+                
+                for (let i = 0; i < matchingList.length; i++) {
+                    const match = matchingList[i];
+                    
+                    let gambarKiriPath = match.gambar_kiri || null;
+                    let gambarKananPath = match.gambar_kanan || null;
+
+                    if (req.files && Array.isArray(req.files)) {
+                        const fileKiri = req.files.find(f => f.fieldname === `gambar_kiri_${i}`);
+                        if (fileKiri) gambarKiriPath = `/uploads/soal/${fileKiri.filename}`;
+                        
+                        const fileKanan = req.files.find(f => f.fieldname === `gambar_kanan_${i}`);
+                        if (fileKanan) gambarKananPath = `/uploads/soal/${fileKanan.filename}`;
+                    }
+
+                    // 🔥 PERBAIKAN: Gunakan '|| null' juga di sini saat update/insert ulang data matching
                     await connection.query(
-                        `INSERT INTO question_matchings (question_id, kunci_kiri, kunci_kanan) VALUES (?, ?, ?)`,
-                        [id, match.kunci_kiri, match.kunci_kanan]
+                        `INSERT INTO question_matchings (question_id, kunci_kiri, kunci_kanan, gambar_kiri, gambar_kanan) 
+                        VALUES (?, ?, ?, ?, ?)`,
+                        [id, match.kunci_kiri || null, match.kunci_kanan || null, gambarKiriPath, gambarKananPath]
                     );
                 }
             }

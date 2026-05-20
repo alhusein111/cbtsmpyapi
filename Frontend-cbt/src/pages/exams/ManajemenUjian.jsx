@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, BookOpen, Edit, Calendar, Clock, Download, X, Trash2, CheckCircle2, XCircle, Search, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { Plus, BookOpen, Edit, Calendar, Clock, Download, X, Trash2, CheckCircle2, XCircle, Search, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Filter, FileText, Layers } from 'lucide-react';
 import api from '../../api/axiosConfig'; 
 import { notifySuccess, notifyError, notifyWarning, confirmDelete } from '../../utils/alertHelper';
 
@@ -12,6 +12,7 @@ const ManajemenUjian = () => {
   // --- STATE UNTUK PAGINASI, PENCARIAN & FILTER ---
   const [searchTerm, setSearchTerm] = useState('');
   const [filterExamType, setFilterExamType] = useState(''); 
+  const [filterClass, setFilterClass] = useState(''); // 🔥 Tambahan state filter kelas
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -40,7 +41,7 @@ const ManajemenUjian = () => {
     waktu_mulai: '',
     waktu_selesai: '',
     durasi: 90,
-    min_work_time: 30, // Default nilai
+    min_work_time: 30, 
     is_active: 1
   });
 
@@ -106,9 +107,8 @@ const ManajemenUjian = () => {
   };
 
   const handleExportExcel = (examId) => {
-  // 👇 PERBAIKAN DISINI: Ambil base URL dari .env, lalu gabungkan dengan endpoint
-  const backendUrl = import.meta.env.VITE_API_URL;
-  window.open(`${backendUrl}/api/exams/export/${examId}`, '_blank'); 
+    const backendUrl = import.meta.env.VITE_API_URL;
+    window.open(`${backendUrl}/api/exams/export/${examId}`, '_blank'); 
   };
 
   const handleCheckboxChange = (e, classId) => {
@@ -130,7 +130,7 @@ const ManajemenUjian = () => {
     setIsEditMode(false);
     setEditId(null);
     setFormData({
-      academic_year_id: activeYearId || '', // Otomatis aktif
+      academic_year_id: activeYearId || '', 
       exam_type_id: '', subject_id: '', kelas_peserta: [], 
       guru_id: '', tanggal_ujian: '', waktu_mulai: '', waktu_selesai: '', durasi: 90, min_work_time: 30, is_active: 1
     });
@@ -155,7 +155,7 @@ const ManajemenUjian = () => {
       waktu_mulai: exam.waktu_mulai || '',
       waktu_selesai: exam.waktu_selesai || '',
       durasi: exam.durasi || 90,
-      min_work_time: exam.min_work_time || 30, // Ditangkap saat edit
+      min_work_time: exam.min_work_time || 30, 
       is_active: exam.is_active !== undefined ? exam.is_active : 1
     });
     setIsModalOpen(true);
@@ -233,6 +233,46 @@ const ManajemenUjian = () => {
 
   const uniqueExamTypes = [...new Set(displayedExams.map(exam => exam.nama_ujian))].filter(Boolean);
 
+  // ==========================================
+  // 1. STATE & FUNGSI UNTUK SORTING
+  // ==========================================
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const renderSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown size={14} className="ml-1.5 inline-block text-slate-300 group-hover:text-slate-500 transition" />;
+    }
+    return sortConfig.direction === 'asc' 
+      ? <ChevronUp size={14} className="ml-1.5 inline-block text-indigo-600" /> 
+      : <ChevronDown size={14} className="ml-1.5 inline-block text-indigo-600" />;
+  };
+
+  // ==========================================
+  // 2. MENDAPATKAN DAFTAR KELAS DINAMIS
+  // ==========================================
+  const uniqueClasses = [
+    ...new Set(
+      displayedExams.flatMap(exam => {
+        const classString = getDisplayKelas(exam);
+        if (classString && classString !== '-') {
+          return classString.split(',').map(item => item.trim());
+        }
+        return [];
+      })
+    )
+  ].filter(Boolean).sort();
+
+  // ==========================================
+  // 3. PROSES FILTERING DATA
+  // ==========================================
   const filteredExams = displayedExams.filter(exam => {
     const searchLower = searchTerm.toLowerCase();
     const matchSearch = (
@@ -242,17 +282,62 @@ const ManajemenUjian = () => {
     );
     const matchType = filterExamType ? exam.nama_ujian === filterExamType : true;
     
-    return matchSearch && matchType;
+    // Filter Kelas
+    const examClassesStr = getDisplayKelas(exam).toLowerCase();
+    const matchClass = filterClass ? examClassesStr.includes(filterClass.toLowerCase()) : true;
+    
+    return matchSearch && matchType && matchClass;
   });
 
+  // ==========================================
+  // 4. PROSES SORTING DATA
+  // ==========================================
+  const sortedExams = useMemo(() => {
+    let sortableItems = [...filteredExams]; 
+    
+    if (sortConfig.key !== null) {
+      sortableItems.sort((a, b) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+
+        // Khusus untuk pengurutan Waktu Ujian (gabungan tanggal & jam)
+        if (sortConfig.key === 'waktu_ujian') {
+          aValue = new Date(`${a.tanggal_ujian} ${a.waktu_mulai}`).getTime();
+          bValue = new Date(`${b.tanggal_ujian} ${b.waktu_mulai}`).getTime();
+        }
+
+        // Handle string agar case-insensitive
+        if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+        if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+
+        // Handle nilai null/undefined
+        if (aValue === undefined || aValue === null) aValue = '';
+        if (bValue === undefined || bValue === null) bValue = '';
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [filteredExams, sortConfig]);
+
+  // ==========================================
+  // 5. PROSES PAGINATION (Potong data dari sortedExams)
+  // ==========================================
   const isAll = itemsPerPage === 'semua';
-  const totalItems = filteredExams.length;
+  const totalItems = sortedExams.length; 
   const totalPages = isAll ? 1 : Math.ceil(totalItems / itemsPerPage);
   
   const indexOfLastItem = isAll ? totalItems : currentPage * itemsPerPage;
   const indexOfFirstItem = isAll ? 0 : indexOfLastItem - itemsPerPage;
-  const currentItems = filteredExams.slice(indexOfFirstItem, indexOfLastItem);
+  
+  // 👇 INI KUNCI PERBAIKANNYA: Potong dari sortedExams, bukan filteredExams
+  const currentItems = sortedExams.slice(indexOfFirstItem, indexOfLastItem);
 
+  // ==========================================
+  // 6. RENDER PAGINATION BUTTONS
+  // ==========================================
   const renderPaginationButtons = () => {
     const buttons = [];
     for (let i = 1; i <= totalPages; i++) {
@@ -303,9 +388,10 @@ const ManajemenUjian = () => {
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         
-        <div className="flex flex-col sm:flex-row justify-between items-center p-4 border-b border-slate-200 gap-4 bg-slate-50/50">
-          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-            <div className="relative w-full sm:w-64 md:w-72">
+        <div className="flex flex-col lg:flex-row justify-between items-center p-4 border-b border-slate-200 gap-4 bg-slate-50/50">
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto flex-wrap">
+            {/* Input Pencarian */}
+            <div className="relative w-full sm:w-64">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input 
                 type="text" 
@@ -319,7 +405,8 @@ const ManajemenUjian = () => {
               />
             </div>
 
-            <div className="relative w-full sm:w-48">
+            {/* Filter Jenis Ujian */}
+            <div className="relative w-full sm:w-44">
               <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <select
                 value={filterExamType}
@@ -338,9 +425,30 @@ const ManajemenUjian = () => {
                 <ChevronRight size={16} className="text-slate-400 rotate-90" />
               </div>
             </div>
+
+            {/* 🔥 FILTER KELAS BARU (DINAMIS) */}
+            <div className="relative w-full sm:w-44">
+              <Layers size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <select
+                value={filterClass}
+                onChange={(e) => {
+                  setFilterClass(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full pl-9 pr-8 py-2 border border-slate-300 rounded-lg text-sm appearance-none focus:ring-2 focus:ring-indigo-500 outline-none transition bg-white cursor-pointer"
+              >
+                <option value="">Semua Kelas</option>
+                {uniqueClasses.map((className, index) => (
+                  <option key={index} value={className}>{className}</option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <ChevronRight size={16} className="text-slate-400 rotate-90" />
+              </div>
+            </div>
           </div>
           
-          <div className="flex items-center gap-2 text-sm text-slate-600 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-2 text-sm text-slate-600 w-full lg:w-auto justify-end">
             <span>Tampilkan:</span>
             <select 
               value={itemsPerPage} 
@@ -362,15 +470,40 @@ const ManajemenUjian = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-max">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
-                <th className="p-4 font-semibold whitespace-nowrap">Nama Mapel / Ujian</th>
-                <th className="p-4 font-semibold whitespace-nowrap">Kelas</th>
-                <th className="p-4 font-semibold whitespace-nowrap">Guru Pengampu</th>
-                <th className="p-4 font-semibold whitespace-nowrap">Waktu Ujian</th>
-                <th className="p-4 font-semibold text-center whitespace-nowrap">Status</th> 
-                <th className="p-4 font-semibold text-center whitespace-nowrap">Aksi</th>
-              </tr>
-            </thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
+                  <th 
+                    className="p-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-100 transition group select-none"
+                    onClick={() => handleSort('nama_mapel')}
+                  >
+                    <div className="flex items-center">Nama Mapel / Ujian {renderSortIcon('nama_mapel')}</div>
+                  </th>
+                  <th 
+                    className="p-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-100 transition group select-none"
+                    onClick={() => handleSort('kelas_peserta')}
+                  >
+                    <div className="flex items-center">Kelas {renderSortIcon('kelas_peserta')}</div>
+                  </th>
+                  <th 
+                    className="p-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-100 transition group select-none"
+                    onClick={() => handleSort('nama_guru')}
+                  >
+                    <div className="flex items-center">Guru Pengampu {renderSortIcon('nama_guru')}</div>
+                  </th>
+                  <th 
+                    className="p-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-100 transition group select-none"
+                    onClick={() => handleSort('waktu_ujian')}
+                  >
+                    <div className="flex items-center">Waktu Ujian {renderSortIcon('waktu_ujian')}</div>
+                  </th>
+                  <th 
+                    className="p-4 font-semibold text-center whitespace-nowrap cursor-pointer hover:bg-slate-100 transition group select-none"
+                    onClick={() => handleSort('is_active')}
+                  >
+                    <div className="flex items-center justify-center">Status {renderSortIcon('is_active')}</div>
+                  </th> 
+                  <th className="p-4 font-semibold text-center whitespace-nowrap">Aksi</th>
+                </tr>
+              </thead>
             <tbody>
               {loading ? (
                 <tr>
@@ -379,57 +512,73 @@ const ManajemenUjian = () => {
               ) : currentItems.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="p-8 text-center text-slate-500">
-                    {searchTerm || filterExamType 
+                    {searchTerm || filterExamType || filterClass
                       ? 'Data tidak ditemukan berdasarkan filter / pencarian Anda.' 
                       : `Belum ada jadwal ujian untuk Tahun Ajaran ${activeYearText}.`}
                   </td>
                 </tr>
               ) : (
-                currentItems.map((exam) => (
-                  <tr key={exam.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                    <td className="p-4 min-w-[250px]">
-                      <p className="font-semibold text-indigo-900">{exam.nama_mapel}</p>
-                      <p className="text-sm text-slate-500">{exam.nama_ujian}</p>
-                    </td>
-                    <td className="p-4 text-sm font-medium whitespace-nowrap">{getDisplayKelas(exam)}</td>
-                    <td className="p-4 text-sm text-slate-600 whitespace-nowrap">{exam.nama_guru || '-'}</td>
-                    <td className="p-4 whitespace-nowrap">
-                      <div className="flex items-center gap-1 text-sm text-slate-600 mb-1">
-                        <Calendar size={14} /> 
-                        {new Date(exam.tanggal_ujian).toLocaleDateString('id-ID')} 
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-slate-500">
-                        <Clock size={14} /> {exam.waktu_mulai} - {exam.waktu_selesai}
-                      </div>
-                    </td>
-                    <td className="p-4 text-center whitespace-nowrap">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full ${exam.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                        {exam.is_active ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                        {exam.is_active ? 'Aktif' : 'Nonaktif'}
-                      </span>
-                    </td>
-                    <td className="p-4 text-center whitespace-nowrap">
-                      <div className="flex justify-center gap-2">
-                        <button onClick={() => navigate(`/exams/${exam.id}/questions`)} className="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded text-sm font-medium flex items-center gap-1.5 transition whitespace-nowrap">
-                          <BookOpen size={16} /> Kelola Soal
-                        </button>
-                        {finalRole === 'admin' && (
-                          <>
-                            <button onClick={() => handleEditClick(exam)} className="p-1.5 border border-slate-200 text-blue-500 hover:bg-blue-50 rounded transition" title="Edit Ujian">
-                              <Edit size={16} />
-                            </button>
-                            <button onClick={() => handleDeleteExam(exam.id)} className="p-1.5 border border-slate-200 text-red-500 hover:bg-red-50 rounded transition" title="Hapus Ujian">
-                              <Trash2 size={16} />
-                            </button>
-                            <button onClick={() => handleExportExcel(exam.id)} className="p-1.5 border border-slate-200 text-slate-500 hover:bg-slate-100 rounded transition" title="Export Nilai">
-                              <Download size={16} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                currentItems.map((exam) => {
+                  const totalSoal = Number(exam.jumlah_soal) || 0;
+
+                  return (
+                    <tr key={exam.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                      <td className="p-4 min-w-[270px]">
+                        <p className="font-semibold text-indigo-900">{exam.nama_mapel}</p>
+                        <p className="text-sm text-slate-500 mb-1.5">{exam.nama_ujian}</p>
+                        
+                        <div className="flex items-center">
+                          {totalSoal === 0 ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-600 border border-rose-200 animate-pulse">
+                              ⚠ Belum Ada Soal (0)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-blue-50 text-blue-600 border border-blue-200">
+                              <FileText size={11} /> {totalSoal} Soal Tersedia
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 text-sm font-medium whitespace-nowrap">{getDisplayKelas(exam)}</td>
+                      <td className="p-4 text-sm text-slate-600 whitespace-nowrap">{exam.nama_guru || '-'}</td>
+                      <td className="p-4 whitespace-nowrap">
+                        <div className="flex items-center gap-1 text-sm text-slate-600 mb-1">
+                          <Calendar size={14} /> 
+                          {new Date(exam.tanggal_ujian).toLocaleDateString('id-ID')} 
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-slate-500">
+                          <Clock size={14} /> {exam.waktu_mulai} - {exam.waktu_selesai}
+                        </div>
+                      </td>
+                      <td className="p-4 text-center whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full ${exam.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                          {exam.is_active ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+                          {exam.is_active ? 'Aktif' : 'Nonaktif'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center whitespace-nowrap">
+                        <div className="flex justify-center gap-2">
+                          <button onClick={() => navigate(`/exams/${exam.id}/questions`)} className="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded text-sm font-medium flex items-center gap-1.5 transition whitespace-nowrap">
+                            <BookOpen size={16} /> Kelola Soal
+                          </button>
+                          {finalRole === 'admin' && (
+                            <>
+                              <button onClick={() => handleEditClick(exam)} className="p-1.5 border border-slate-200 text-blue-500 hover:bg-blue-50 rounded transition" title="Edit Ujian">
+                                <Edit size={16} />
+                              </button>
+                              <button onClick={() => handleDeleteExam(exam.id)} className="p-1.5 border border-slate-200 text-red-500 hover:bg-red-50 rounded transition" title="Hapus Ujian">
+                                <Trash2 size={16} />
+                              </button>
+                              <button onClick={() => handleExportExcel(exam.id)} className="p-1.5 border border-slate-200 text-slate-500 hover:bg-slate-100 rounded transition" title="Export Nilai">
+                                <Download size={16} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -483,7 +632,6 @@ const ManajemenUjian = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-slate-100 pb-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Tahun Pelajaran</label>
-                  {/* DIBUAT DISABLED DAN OTOMATIS */}
                   <select 
                     required 
                     disabled 
@@ -552,7 +700,6 @@ const ManajemenUjian = () => {
                 </div>
               </div>
 
-              {/* GRID WAKTU & DURASI DIRAPIKAN */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal Ujian</label>
@@ -574,7 +721,6 @@ const ManajemenUjian = () => {
                   <input type="number" required value={formData.durasi} onChange={(e) => setFormData({...formData, durasi: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div>
-                  {/* FIELD MINIMAL PENGERJAAN DITAMBAHKAN */}
                   <label className="block text-sm font-medium text-slate-700 mb-1">Minimal Pengerjaan (Menit)</label>
                   <input type="number" required value={formData.min_work_time} onChange={(e) => setFormData({...formData, min_work_time: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>

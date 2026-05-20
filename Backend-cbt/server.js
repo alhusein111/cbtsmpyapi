@@ -63,6 +63,36 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/raport', raportRoutes);
 app.use('/api/nilai', nilaiRoutes);
 
+
+// ==========================================
+// 🔥 GLOBAL ERROR HANDLER (TAMBAHKAN DI SINI)
+// ==========================================
+app.use((err, req, res, next) => {
+    // 1. Tangkap error jika ukuran file melebihi limit (500 KB)
+    if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Gagal! Ukuran gambar terlalu besar. Maksimal ukuran file adalah 500 KB.' 
+        });
+    }
+
+    // 2. Tangkap error dari fileFilter (jika file bukan gambar)
+    if (err.message && err.message.includes('Hanya diperbolehkan mengunggah file gambar')) {
+        return res.status(400).json({ 
+            success: false, 
+            message: err.message 
+        });
+    }
+
+    // 3. Tangkap error server lainnya
+    console.error('❌ Server Error:', err);
+    res.status(500).json({ 
+        success: false, 
+        message: err.message || 'Terjadi kesalahan pada internal server.' 
+    });
+});
+
+
 // ==========================================
 // --- SOCKET.IO (COMMAND CENTER & ANTI-CHEAT) ---
 // ==========================================

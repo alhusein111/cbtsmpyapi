@@ -265,7 +265,7 @@ const handleAksiPeserta = async (studentExamId, siswaId, actionType) => {
   const uniquePeserta = useMemo(() => {
     const map = new Map();
     peserta.forEach(p => {
-      const uniqueKey = p.student_exam_id || p.siswa_id || p.id;
+      const uniqueKey = p.student_exam_id ? `exam_${p.student_exam_id}` : `siswa_${p.siswa_id}`;
       if (uniqueKey) {
         map.set(uniqueKey, p);
       }
@@ -485,7 +485,7 @@ const handleAksiPeserta = async (studentExamId, siswaId, actionType) => {
               const displayWaktu = p.status === 'Selesai' ? (p.lama_pengerjaan || 'Selesai') : (p.sisaWaktu || '-');
 
               return (
-                <div key={p.student_exam_id || p.siswa_id || p.id} className={`bg-white p-5 rounded-2xl border ${p.status === 'Terkunci' ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'} shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between gap-4`}>
+                <div key={p.student_exam_id ? `exam_${p.student_exam_id}` : `siswa_${p.siswa_id}`} className={`bg-white p-5 rounded-2xl border ${p.status === 'Terkunci' ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'} shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between gap-4`}>
                   
                   {/* 🔥 PERBAIKAN STRUKTUR HEADER CARD: ANTI BENTROK & TUMPANG TINDIH 🔥 */}
                   <div className="flex justify-between items-start gap-3 min-w-0 w-full">
@@ -583,7 +583,7 @@ const handleAksiPeserta = async (studentExamId, siswaId, actionType) => {
                       const displayWaktu = p.status === 'Selesai' ? (p.lama_pengerjaan || 'Selesai') : (p.sisaWaktu || '-');
 
                       return (
-                      <tr key={p.student_exam_id || p.siswa_id || p.id} className={`transition-colors ${p.status === 'Terkunci' ? 'bg-rose-50/20' : 'hover:bg-slate-50/50'}`}>
+                      <tr key={p.student_exam_id ? `exam_${p.student_exam_id}` : `siswa_${p.siswa_id}`} className={`transition-colors ${p.status === 'Terkunci' ? 'bg-rose-50/20' : 'hover:bg-slate-50/50'}`}>
                         <td className="px-6 py-4 flex items-center gap-3">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-inner ${getAvatarColor(p.nama)}`}>
                             {getInitials(p.nama)}

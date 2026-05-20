@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Clock, AlertTriangle, LogOut, Map, CheckCircle2, ChevronLeft, ChevronRight, Play, Info } from 'lucide-react';
 import api from '../../api/axiosConfig'; // Sesuaikan path axios Anda
 import { toast } from 'sonner';
-import Swal from 'sweetalert2'; // TAMBAHAN: Import SweetAlert2
+import Swal from 'sweetalert2';
 
 // === HELPER FUNCTIONS ===
 const stripHtml = (html) => {
@@ -13,16 +13,24 @@ const stripHtml = (html) => {
   return tmp.textContent || tmp.innerText || "";
 };
 
-const fixHTMLContent = (htmlString) => {
-  if (!htmlString) return '';
+const fixImageUrl = (imagePath) => {
+  if (!imagePath) return '';
+  // Kalau path udah format web atau base64, biarkan saja
+  if (imagePath.startsWith('http') || imagePath.startsWith('data:image')) return imagePath;
   
-  // Sesuaikan URL ini dengan port/host Backend Anda!
-  const backendUrl = import.meta.env.VITE_API_URL;
-  
-  // Asumsi folder penyimpanan gambar Anda di backend adalah 'uploads'
-  return htmlString.replace(/src="\/uploads/g, `src="${backendUrl}/uploads/soal`);
+  const backendUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || ''; 
+  // Gabungkan URL backend dengan path gambar
+  return imagePath.startsWith('/') ? `${backendUrl}${imagePath}` : `${backendUrl}/uploads/soal/${imagePath}`;
 };
 
+const fixHTMLContent = (html) => {
+  if (!html) return '';
+  const backendUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || '';
+  // Memperbaiki src gambar di dalam string HTML agar mengarah ke backend yang benar
+  return html.replace(/src="(\/[^"]+)"/g, `src="${backendUrl}$1"`);
+};
+
+const BASE_URL = import.meta.env.VITE_API_URL;
 // =======================
 
 const CbtArena = () => {
@@ -119,7 +127,6 @@ const CbtArena = () => {
         setStudentExamId(dataExam.student_exam_id);
         localStorage.setItem('student_exam_id', dataExam.student_exam_id);
         
-        // Asumsi data ini ada dari backend Anda. Jika field-nya beda, sesuaikan namanya (misal: dataExam.nama_mapel)
         setInfoUjian({
           jenis_ujian: dataExam.jenis_ujian || 'CBT Arena',
           nama_mapel: dataExam.nama_mapel || 'Ujian Aktif'
@@ -133,7 +140,7 @@ const CbtArena = () => {
         if (dataExam.sisa_waktu !== undefined) setSisaWaktu(dataExam.sisa_waktu);
         if (dataExam.durasi_total !== undefined) setDurasiTotal(dataExam.durasi_total);
         
-        // FIX: Konversi min_work_time (Menit) ke Detik
+        // Konversi min_work_time (Menit) ke Detik
         if (dataExam.min_work_time !== undefined) setMinWorkTime(dataExam.min_work_time * 60);
         
         fetchNavigasi(dataExam.student_exam_id);
@@ -163,14 +170,13 @@ const CbtArena = () => {
     }
   };
 
-// === USEEFFECT KEAMANAN (DIPERBARUI - CELAH MODAL DITUTUP) ===
+  // === USEEFFECT KEAMANAN ===
   useEffect(() => {
     if (isInLobby || isLocked || isSubmitting) return; 
 
     const handlePelanggaran = async () => {
-      setIsLocked(true); // Cegah trigger berkali-kali
+      setIsLocked(true); 
       
-      // 💡 TAMBAHAN: Fungsi kecil untuk memaksa keluar dari fullscreen
       const forceExitFullscreen = async () => {
         try {
           if (document.fullscreenElement) {
@@ -195,7 +201,7 @@ const CbtArena = () => {
             confirmButtonText: 'Keluar',
             allowOutsideClick: false
           }).then(async () => {
-            await forceExitFullscreen(); // 💡 KELUARKAN FULLSCREEN SEBELUM PINDAH RUTE
+            await forceExitFullscreen(); 
             navigate('/login', { replace: true }); 
           });
 
@@ -208,7 +214,7 @@ const CbtArena = () => {
             confirmButtonText: 'Keluar',
             allowOutsideClick: false
           }).then(async () => {
-            await forceExitFullscreen(); // 💡 KELUARKAN FULLSCREEN SEBELUM PINDAH RUTE
+            await forceExitFullscreen(); 
             navigate('/login', { replace: true }); 
           });
       }
@@ -229,12 +235,8 @@ const CbtArena = () => {
       }
     };
 
-    // 💡 PERBAIKAN: Hapus !showModalSelesai dari ketiga sensor di bawah ini!
     const handleFullscreenChange = () => {
       const isAppCbt = navigator.userAgent.includes("APP_CBT_YAPI");
-      
-      // JANGAN anggap pelanggaran jika itu adalah Aplikasi Android kita. 
-      // Hukum (tendang) HANYA jika pakai browser biasa dan keluar dari mode fullscreen.
       if (!isAppCbt && !document.fullscreenElement && !timeOutMode && !isSubmitting) {
         handlePelanggaran();
       }
@@ -252,33 +254,26 @@ const CbtArena = () => {
       }
     };
 
-    // 🚀 FUNGSI BARU: MENANGKAP TEMBAKAN DARI ANDROID (XIAOMI FLOATING APP)
     const handleAndroidPelanggaran = (e) => {
       console.log("ALARM DARI ANDROID: ", e.detail);
       if (!timeOutMode && !isSubmitting) {
-        handlePelanggaran(); // Langsung eksekusi kunci akun!
+        handlePelanggaran(); 
       }
     };
 
-    // Pemasangan Sensor / Listener Bawaan Mas Brow
     document.addEventListener('contextmenu', preventDefaultActions);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleBlur);
-    
-    // 👇 TAMBAHKAN SENSOR ANDROID DI SINI 👇
     window.addEventListener('pelanggaran_terdeteksi', handleAndroidPelanggaran);
     
     return () => {
-      // Pembersihan Sensor saat keluar
       document.removeEventListener('contextmenu', preventDefaultActions);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleBlur);
-      
-      // 👇 BERSIHKAN SENSOR ANDROID JUGA 👇
       window.removeEventListener('pelanggaran_terdeteksi', handleAndroidPelanggaran);
     };
   }, [isInLobby, timeOutMode, navigate, studentExamId, isLocked, isSubmitting]);
@@ -304,8 +299,18 @@ const CbtArena = () => {
           setPilihan(data.pilihan || []);
 
           if (currentTipe === 'MJ' || currentTipe === 'matching' || currentTipe === 'menjodohkan') {
-              const kiri = (data.pilihan || []).map(p => ({ id: p.id, teks: p.kunci_kiri }));
-              const kanan = (data.pilihan || []).map(p => ({ id: p.id, teks: p.kunci_kanan }));
+              // Kita bawa semua properti dari DB (dengan ...p) atau spesifik tentukan properti gambarnya
+                const kiri = (data.pilihan || []).map(p => ({ 
+                    id: p.id, 
+                    teks: p.kunci_kiri,
+                    gambar: p.gambar_kiri || p.gambar_opsi || p.gambar // Sesuaikan dengan nama field di database/backend untuk gambar kiri
+                }));
+
+                const kanan = (data.pilihan || []).map(p => ({ 
+                    id: p.id, 
+                    teks: p.kunci_kanan,
+                    gambar: p.gambar_kanan || p.gambar_opsi || p.gambar // Sesuaikan dengan nama field di database/backend untuk gambar kanan
+                }));
               setLeftOptions(kiri);
               
               const shuffledKanan = [...kanan].sort(() => Math.random() - 0.5);
@@ -366,7 +371,6 @@ const CbtArena = () => {
     setLinesMj(newLines);
   };
 
-  // 1. Efek untuk garis penjodohan (Matching)
   useEffect(() => {
     const timerId = setTimeout(updateLines, 100); 
     window.addEventListener('resize', updateLines);
@@ -376,24 +380,19 @@ const CbtArena = () => {
     };
   }, [mjMatches, leftOptions, rightOptions]);
 
-  // 2. Efek untuk Jam Dinding realtime
   useEffect(() => {
     if (isInLobby) return;
     const clockTimer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(clockTimer);
   }, [isInLobby]);
 
-  // 3. Efek untuk Hitung Mundur Sisa Waktu Ujian
   useEffect(() => {
-    // FIX: Hentikan juga timer ini jika sudah timeOutMode agar tidak double running
     if (isInLobby || timeOutMode) return; 
 
     const timer = setInterval(() => {
       setSisaWaktu(prev => {
         if (prev <= 1) {
           setTimeOutMode(true);
-          // HAPUS clearInterval(timer) di sini, ini adalah anti-pattern (berbahaya) di dalam setState.
-          // Cukup setTimeOutMode(true), maka useEffect ini akan otomatis di-cleanup karena deps berubah.
           return 0;
         }
         return prev - 1;
@@ -402,30 +401,22 @@ const CbtArena = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isInLobby, timeOutMode]); // FIX: Tambahkan timeOutMode ke deps
+  }, [isInLobby, timeOutMode]); 
 
-  // 4. Efek untuk Animasi Waktu Habis & Auto Submit
   useEffect(() => {
     let to;
-
     if (timeOutMode) {
       if (timeoutCountdown > 0) {
         to = setTimeout(() => setTimeoutCountdown(prev => prev - 1), 1000);
       } else if (timeoutCountdown === 0) {
-        // Panggil submit HANYA jika sedang tidak ada proses submit berjalan
         if (!isSubmitting) {
           submitUjianSelesai(true); 
         }
       }
     }
-
     return () => {
       if (to) clearTimeout(to);
     };
-    
-    // FIX SANGAT PENTING: Hapus 'isSubmitting' dari array dependensi ini!
-    // Tambahkan komentar disable eslint di bawah ini jika linter editor Anda rewel
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeOutMode, timeoutCountdown]);
 
   const getQuestionType = () => {
@@ -494,7 +485,6 @@ const CbtArena = () => {
     saveAnswerToDB(null, stringForDb, raguRagu);
   };
 
-// Helper function agar kode lebih bersih dan tidak berulang
   const keluarUjianAman = async () => {
     try {
       if (document.fullscreenElement) {
@@ -503,16 +493,11 @@ const CbtArena = () => {
     } catch (fsError) {
       console.warn("Abaikan error exit fullscreen:", fsError);
     }
-    
-    // 👇 TAMBAHAN WAJIB: Hapus ID ujian biar Android tahu ujian udah beres
     localStorage.removeItem('student_exam_id'); 
-    
     navigate('/dashboard', { replace: true });
   };
 
-  // FIX: PROTEKSI TOKEN & NAVIGASI + LOGGER
   const submitUjianSelesai = async (isForceSubmit = false) => {
-    // PROTEKSI: Jika sedang dalam proses submit, jangan jalankan lagi (mencegah spam)
     if (isSubmitting) return;
 
     if (!isForceSubmit && !tokenKeluar) {
@@ -532,26 +517,20 @@ const CbtArena = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      // Jika berhasil atau backend membalas already_finished (dari perbaikan backend sebelumnya)
       if (res.data.success || res.data.already_finished) {
-        // Jangan munculkan toast hijau jika ini force submit (waktu habis), agar langsung keluar
         if (!isForceSubmit) toast.success(res.data.message || "Ujian Selesai!");
-        
         keluarUjianAman(); 
       } else {
         toast.error(res.data.message || "Gagal menyelesaikan ujian!");
-        setIsSubmitting(false); // Buka kembali state agar bisa dicoba lagi jika benar-benar gagal
+        setIsSubmitting(false); 
       }
     } catch (error) {
       const errorMsg = error.response?.data?.message || "Terjadi kesalahan pada server!";
-      
-      // LOGIKA KUNCI: Jika error-nya karena ujian memang sudah selesai/disubmit, 
-      // paksa redirect ke dashboard alih-alih menampilkan error terus menerus.
       if (errorMsg.toLowerCase().includes("sudah diselesaikan") || errorMsg.toLowerCase().includes("selesai")) {
         keluarUjianAman();
       } else {
         toast.error(errorMsg);
-        setIsSubmitting(false); // Buka kembali state jika error server lain
+        setIsSubmitting(false); 
       }
     }
   };
@@ -589,7 +568,7 @@ const CbtArena = () => {
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2 group"
           >
             <Play size={20} className="group-hover:scale-110 transition-transform" />
-            MULAI UJIAN SEKARANG
+            `MULAI UJIAN SEKARANG`
           </button>
           <button onClick={() => navigate('/dashboard')} className="mt-4 text-slate-500 text-sm font-bold hover:text-slate-800">
             Batal & Kembali ke Dashboard
@@ -597,7 +576,7 @@ const CbtArena = () => {
         </div>
       </div>
     );
-  }
+  } 
 
   const qType = getQuestionType();
 
@@ -613,7 +592,7 @@ const CbtArena = () => {
         </div>
       )}
 
-      {/* FIX: HEADER DINAMIS SESUAI REQUEST */}
+      {/* HEADER DINAMIS */}
       <div className={`sticky top-0 z-40 w-full shadow-lg transition-colors duration-500 ${timerTheme.bg} ${timerTheme.text}`}>
         <div className="flex justify-between items-center px-4 md:px-8 py-3">
           <div className="flex items-center gap-3">
@@ -662,8 +641,6 @@ const CbtArena = () => {
               ) : (
                 <>
                   <div className="mb-8 text-slate-800 text-lg md:text-xl leading-relaxed w-full min-w-0 flex flex-col">
-                    
-                    {/* --- JURUS PAMUNGKAS DI CBT ARENA --- */}
                     <div 
                       className="w-full min-w-0 overflow-hidden wrap-break-word **:whitespace-normal! **:wrap-break-word! **:[word-break:break-word]! [&_img]:max-w-full! [&_img]:h-auto! [&_table]:w-full! [&_table]:block! [&_table]:overflow-x-auto!" 
                       style={{ 
@@ -672,13 +649,13 @@ const CbtArena = () => {
                         wordBreak: 'break-word',
                         whiteSpace: 'normal' 
                       }}
-                      dangerouslySetInnerHTML={{ __html: soalAktif?.teks_soal || '' }} 
+                      dangerouslySetInnerHTML={{ __html: fixHTMLContent(soalAktif?.teks_soal || '') }} 
                     />
-                    {/* ------------------------------------ */}
                     
+                    {/* 👇 SEBELUMNYA BELUM MENGGUNAKAN fixImageUrl */}
                     {soalAktif?.gambar_soal && (
                       <img 
-                        src={soalAktif.gambar_soal} 
+                        src={fixImageUrl(soalAktif.gambar_soal)} 
                         alt="Ilustrasi Soal" 
                         className="max-w-full h-auto rounded-xl border border-slate-200 my-4 shadow-sm" 
                       />
@@ -698,77 +675,105 @@ const CbtArena = () => {
                   )}
 
                   {qType === 'menjodohkan' && (
-                    <div className="mt-4 animate-in fade-in duration-300">
-                      <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl mb-8 flex gap-3 text-indigo-800">
-                        <Info size={20} className="shrink-0 mt-0.5" />
-                        <p className="text-sm font-medium">Ini adalah soal tipe <strong>Menjodohkan</strong>. Silakan klik kotak sebelah kiri lalu klik pasangannya di kotak sebelah kanan.</p>
-                      </div>
+                      <div className="mt-4 animate-in fade-in duration-300">
+                        <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl mb-8 flex gap-3 text-indigo-800">
+                          <Info size={20} className="shrink-0 mt-0.5" />
+                          <p className="text-sm font-medium">Ini adalah soal tipe <strong>Menjodohkan</strong>. Silakan klik kotak sebelah kiri lalu klik pasangannya di kotak sebelah kanan.</p>
+                        </div>
 
-                      <div className="relative w-full px-2" ref={containerMjRef}>
-                        <svg className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
-                            {linesMj.map((line, i) => (
-                                <line 
-                                  key={`line-${i}`} 
-                                  x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} 
-                                  stroke={line.color} strokeWidth="3" strokeLinecap="round" 
-                                />
-                            ))}
-                        </svg>
+                        <div className="relative w-full px-2" ref={containerMjRef}>
+                          <svg className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
+                              {linesMj.map((line, i) => (
+                                  <line 
+                                    key={`line-${i}`} 
+                                    x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} 
+                                    stroke={line.color} strokeWidth="3" strokeLinecap="round" 
+                                  />
+                              ))}
+                          </svg>
 
-                        <div className="flex flex-col md:flex-row justify-between gap-8 md:gap-32 relative z-10">
-                          <div className="flex-1 flex flex-col gap-4">
-                            {leftOptions.map((item) => {
-                              const matchIndex = mjMatches.findIndex(m => m.kiri.id === item.id);
-                              const isMatched = matchIndex !== -1;
-                              const isSelected = activeKiri?.id === item.id;
-                              const borderColor = isSelected ? '#4f46e5' : (isMatched ? matchColors[matchIndex % matchColors.length] : '#e2e8f0');
+                          <div className="flex flex-col md:flex-row justify-between gap-8 md:gap-32 relative z-10">
+                            {/* KOLOM KIRI */}
+                            <div className="flex-1 flex flex-col gap-4">
+                              {leftOptions.map((item) => {
+                                const matchIndex = mjMatches.findIndex(m => m.kiri.id === item.id);
+                                const isMatched = matchIndex !== -1;
+                                const isSelected = activeKiri?.id === item.id;
+                                const borderColor = isSelected ? '#4f46e5' : (isMatched ? matchColors[matchIndex % matchColors.length] : '#e2e8f0');
+                                const gambarOpsiKiri = item.gambar || item.gambar_opsi;
 
-                              return (
-                                <div 
-                                  key={`kiri-${item.id}`} 
-                                  onClick={() => handleKlikKiriMJ(item)}
-                                  className="flex justify-between items-center p-4 border-2 rounded-xl shadow-sm transition-all cursor-pointer bg-white hover:bg-slate-50"
-                                  style={{ borderColor: borderColor }}
-                                >
-                                  <div className="text-slate-700 font-medium pr-4 text-sm md:text-base" dangerouslySetInnerHTML={{ __html: item.teks }} />
+                                return (
                                   <div 
-                                    id={`node-kiri-${item.id}`} 
-                                    className="w-4 h-4 md:w-5 md:h-5 rounded-full shrink-0 z-20"
-                                    style={{ backgroundColor: borderColor }}
-                                  ></div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                                    key={`kiri-${item.id}`} 
+                                    onClick={() => handleKlikKiriMJ(item)}
+                                    className="flex justify-between items-center p-4 border-2 rounded-xl shadow-sm transition-all cursor-pointer bg-white hover:bg-slate-50 min-w-0 w-full"
+                                    style={{ borderColor: borderColor }}
+                                  >
+                                    <div className="flex flex-col gap-2 flex-1 min-w-0 pr-4">
+                                      {item.teks && (
+                                        <div className="text-slate-700 font-medium text-sm md:text-base break-words mj-content" dangerouslySetInnerHTML={{ __html: fixHTMLContent(item.teks) }} />
+                                      )}
+                                      {gambarOpsiKiri && (
+                                        <img 
+                                          src={fixImageUrl(gambarOpsiKiri)} 
+                                          alt="Opsi Kiri" 
+                                          className="max-w-full h-auto rounded-lg border border-slate-100 shadow-sm my-1"
+                                          style={{ maxHeight: '120px', objectFit: 'contain', alignSelf: 'flex-start' }}
+                                        />
+                                      )}
+                                    </div>
+                                    <div 
+                                      id={`node-kiri-${item.id}`} 
+                                      className="w-4 h-4 md:w-5 md:h-5 rounded-full shrink-0 z-20"
+                                      style={{ backgroundColor: borderColor }}
+                                    ></div>
+                                  </div>
+                                );
+                              })}
+                            </div>
 
-                          <div className="flex-1 flex flex-col gap-4">
-                            {rightOptions.map((item) => {
-                              const matchIndex = mjMatches.findIndex(m => m.kanan.id === item.id);
-                              const isMatched = matchIndex !== -1;
-                              const borderColor = isMatched ? matchColors[matchIndex % matchColors.length] : '#e2e8f0';
+                            {/* KOLOM KANAN */}
+                            <div className="flex-1 flex flex-col gap-4">
+                              {rightOptions.map((item) => {
+                                const matchIndex = mjMatches.findIndex(m => m.kanan.id === item.id);
+                                const isMatched = matchIndex !== -1;
+                                const borderColor = isMatched ? matchColors[matchIndex % matchColors.length] : '#e2e8f0';
+                                const gambarOpsiKanan = item.gambar || item.gambar_opsi;
 
-                              return (
-                                <div 
-                                  key={`kanan-${item.id}`} 
-                                  onClick={() => handleKlikKananMJ(item)}
-                                  className="flex items-center p-4 border-2 rounded-xl shadow-sm transition-all cursor-pointer bg-white hover:bg-slate-50"
-                                  style={{ borderColor: borderColor }}
-                                >
+                                return (
                                   <div 
-                                    id={`node-kanan-${item.id}`} 
-                                    className="w-4 h-4 md:w-5 md:h-5 rounded-full shrink-0 mr-4 z-20"
-                                    style={{ backgroundColor: borderColor }}
-                                  ></div>
-                                  <div className="text-slate-700 font-medium w-full text-sm md:text-base" dangerouslySetInnerHTML={{ __html: item.teks }} />
-                                </div>
-                              );
-                            })}
+                                    key={`kanan-${item.id}`} 
+                                    onClick={() => handleKlikKananMJ(item)}
+                                    className="flex items-center p-4 border-2 rounded-xl shadow-sm transition-all cursor-pointer bg-white hover:bg-slate-50 min-w-0 w-full"
+                                    style={{ borderColor: borderColor }}
+                                  >
+                                    <div 
+                                      id={`node-kanan-${item.id}`} 
+                                      className="w-4 h-4 md:w-5 md:h-5 rounded-full shrink-0 mr-4 z-20"
+                                      style={{ backgroundColor: borderColor }}
+                                    ></div>
+
+                                    <div className="flex flex-col gap-2 flex-1 min-w-0">
+                                      {item.teks && (
+                                        <div className="text-slate-700 font-medium w-full text-sm md:text-base break-words mj-content" dangerouslySetInnerHTML={{ __html: fixHTMLContent(item.teks) }} />
+                                      )}
+                                      {gambarOpsiKanan && (
+                                        <img 
+                                          src={fixImageUrl(gambarOpsiKanan)} 
+                                          alt="Opsi Kanan" 
+                                          className="max-w-full h-auto rounded-lg border border-slate-100 shadow-sm my-1"
+                                          style={{ maxHeight: '120px', objectFit: 'contain', alignSelf: 'flex-start' }}
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
+                        <textarea className="hidden" value={jawabanText} readOnly />
                       </div>
-
-                      <textarea className="hidden" value={jawabanText} readOnly />
-                    </div>
                   )}
 
                   {(qType === 'pg' || qType === 'bs') && (
@@ -785,17 +790,14 @@ const CbtArena = () => {
                                 : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
                             }`}
                           >
-                            {/* Lingkaran Radio Button */}
                             <div className={`mt-0.5 w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mr-4 ${isSelected ? 'border-indigo-600' : 'border-slate-300'}`}>
                               {isSelected && <div className="w-3 h-3 bg-indigo-600 rounded-full"></div>}
                             </div>
                             
-                            {/* Pembungkus Teks & Gambar Opsi */}
                             <div className="text-base md:text-lg text-slate-700 leading-snug flex w-full min-w-0">
                               <span className="font-black mr-2 text-slate-900 shrink-0">{String.fromCharCode(65 + idx)}.</span> 
                               
                               <div className="w-full flex flex-col gap-2 min-w-0 overflow-hidden">
-                                {/* 1. Tampilkan Teks Opsi (jika ada) */}
                                 {opsi.teks_opsi && (
                                   <div 
                                     className="w-full overflow-x-auto wrap-break-word whitespace-normal **:whitespace-normal! **:max-w-full! [&>p]:m-0 [&_img]:max-w-full! [&_img]:h-auto [&_img]:my-2 [&_img]:rounded-md" 
@@ -803,10 +805,10 @@ const CbtArena = () => {
                                   />
                                 )}
 
-                                {/* 2. Tampilkan Gambar Opsi */}
+                                {/* 👇 SEBELUMNYA BELUM MENGGUNAKAN fixImageUrl */}
                                 {opsi.gambar_opsi && (
                                   <img 
-                                    src={opsi.gambar_opsi} 
+                                    src={fixImageUrl(opsi.gambar_opsi)} 
                                     alt={`Opsi ${String.fromCharCode(65 + idx)}`} 
                                     className="max-w-full h-auto rounded-lg border border-slate-200 shadow-sm"
                                     style={{ maxHeight: '200px', objectFit: 'contain' }}
@@ -934,7 +936,7 @@ const CbtArena = () => {
               <button 
                 onClick={() => {
                   setShowModalSelesai(false);
-                  setTokenKeluar(''); // Kosongkan input token jika batal
+                  setTokenKeluar(''); 
                 }}
                 className="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors"
                 disabled={isSubmitting}
@@ -943,7 +945,7 @@ const CbtArena = () => {
               </button>
 
               <button 
-                onClick={() => submitUjianSelesai(false)} // isForceSubmit = false karena diklik manual
+                onClick={() => submitUjianSelesai(false)} 
                 disabled={!tokenKeluar || isSubmitting}
                 className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-red-200 transition-all flex justify-center items-center gap-2"
               >

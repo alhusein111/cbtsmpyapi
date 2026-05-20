@@ -37,7 +37,7 @@ const imageFileFilter = (req, file, cb) => {
 
 const uploadSoal = multer({ 
     storage: storageSoal,
-    limits: { fileSize: 2 * 1024 * 1024 }, // Maksimal 2MB per file (aman karena kalau multiple dihitung per 1 gambar)
+    limits: { fileSize: 500 * 1024 }, 
     fileFilter: imageFileFilter
 });
 
@@ -90,6 +90,7 @@ const storageBulkGambar = multer.diskStorage({
 
 const uploadBulkGambar = multer({ 
     storage: storageBulkGambar,
+    limits: { fileSize: 500 * 1024 },
     fileFilter: imageFileFilter // Pakai filter gambar yang sama dengan soal
 });
 

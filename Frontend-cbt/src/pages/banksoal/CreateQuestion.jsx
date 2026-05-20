@@ -27,8 +27,8 @@ const CreateQuestion = () => {
   ]);
 
   const [matchings, setMatchings] = useState([
-    { id: 1, kunci_kiri: '', kunci_kanan: '' },
-    { id: 2, kunci_kiri: '', kunci_kanan: '' },
+    { id: 1, kunci_kiri: '', kunci_kanan: '', file_kiri: null, preview_kiri: null, file_kanan: null, preview_kanan: null },
+    { id: 2, kunci_kiri: '', kunci_kanan: '', file_kiri: null, preview_kiri: null, file_kanan: null, preview_kanan: null },
   ]);
 
   const [isSaving, setIsSaving] = useState(false);
@@ -113,6 +113,22 @@ const CreateQuestion = () => {
     setMatchings(newMatchings);
   };
 
+  const handleMatchingImageChange = (index, field, file) => {
+    if (file) {
+      const newMatchings = [...matchings];
+      newMatchings[index][`file_${field}`] = file;
+      newMatchings[index][`preview_${field}`] = URL.createObjectURL(file);
+      setMatchings(newMatchings);
+    }
+  };
+
+  const removeMatchingImage = (index, field) => {
+    const newMatchings = [...matchings];
+    newMatchings[index][`file_${field}`] = null;
+    newMatchings[index][`preview_${field}`] = null;
+    setMatchings(newMatchings);
+  };
+
   const removeMatching = (id) => {
     setMatchings(matchings.filter(m => m.id !== id));
   };
@@ -138,10 +154,15 @@ const CreateQuestion = () => {
     }
 
     if (tipeSoal === 'MJ') {
-        const isValid = matchings.every(m => m.kunci_kiri.trim() && m.kunci_kanan.trim());
-        if (!isValid) {
-            Swal.fire('Peringatan', 'Semua pasangan kunci kiri dan kanan harus diisi!', 'warning');
-            return;
+    // Valid jika: (Teks diisi) ATAU (ada file_baru) ATAU (ada preview/gambar_lama dari backend)
+    const isValid = matchings.every(m => 
+        (m.kunci_kiri?.trim() || m.file_kiri || m.preview_kiri) && 
+        (m.kunci_kanan?.trim() || m.file_kanan || m.preview_kanan)
+    );
+    
+    if (!isValid) {
+        Swal.fire('Peringatan', 'Setiap baris pasangan harus memiliki teks atau gambar (tidak boleh kosong keduanya)!', 'warning');
+        return;
         }
     }
 
@@ -167,8 +188,20 @@ const CreateQuestion = () => {
             }
         });
       } 
+
       else if (tipeSoal === 'MJ') {
-        formData.append('matchings', JSON.stringify(matchings));
+        // Kirim teks-nya saja via JSON
+        const formattedMatchings = matchings.map(m => ({
+            kunci_kiri: m.kunci_kiri,
+            kunci_kanan: m.kunci_kanan
+        }));
+        formData.append('matchings', JSON.stringify(formattedMatchings));
+
+        // Append file fisiknya secara terpisah
+        matchings.forEach((m, index) => {
+            if (m.file_kiri) formData.append(`gambar_kiri_${index}`, m.file_kiri);
+            if (m.file_kanan) formData.append(`gambar_kanan_${index}`, m.file_kanan);
+        });
       }
 
       await api.post('/api/questions/tambah', formData);
@@ -310,21 +343,54 @@ const CreateQuestion = () => {
                     </div>
                     {matchings.map((match, index) => (
                         <div key={match.id} className="flex items-center gap-4 min-w-0">
-                            <input 
-                                type="text" 
-                                value={match.kunci_kiri} 
-                                onChange={(e) => updateMatching(index, 'kunci_kiri', e.target.value)}
-                                placeholder="Cth: Ibu Kota Indonesia" 
-                                className="flex-1 p-2 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 min-w-0"
-                            />
+                            {/* BLOK KIRI */}
+                            <div className="flex-1 flex flex-col gap-2">
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        value={match.kunci_kiri} 
+                                        onChange={(e) => updateMatching(index, 'kunci_kiri', e.target.value)}
+                                        placeholder="Teks Kiri (Opsional jika ada gambar)" 
+                                        className="flex-1 p-2 border border-slate-200 rounded-lg outline-none focus:border-indigo-500"
+                                    />
+                                    <label className="cursor-pointer p-2 border border-slate-200 rounded-lg hover:bg-slate-50">
+                                        <ImageIcon size={20} className="text-slate-500"/>
+                                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleMatchingImageChange(index, 'kiri', e.target.files[0])} />
+                                    </label>
+                                </div>
+                                {match.preview_kiri && (
+                                    <div className="relative w-max">
+                                        <img src={match.preview_kiri} alt="Kiri" className="h-16 w-16 object-cover rounded border" />
+                                        <button onClick={() => removeMatchingImage(index, 'kiri')} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs">x</button>
+                                    </div>
+                                )}
+                            </div>
+
                             <Link size={16} className="text-slate-300 shrink-0" />
-                            <input 
-                                type="text" 
-                                value={match.kunci_kanan} 
-                                onChange={(e) => updateMatching(index, 'kunci_kanan', e.target.value)}
-                                placeholder="Cth: Jakarta" 
-                                className="flex-1 p-2 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 min-w-0"
-                            />
+
+                            {/* BLOK KANAN */}
+                            <div className="flex-1 flex flex-col gap-2">
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        value={match.kunci_kanan} 
+                                        onChange={(e) => updateMatching(index, 'kunci_kanan', e.target.value)}
+                                        placeholder="Teks Kanan (Opsional jika ada gambar)" 
+                                        className="flex-1 p-2 border border-slate-200 rounded-lg outline-none focus:border-indigo-500"
+                                    />
+                                    <label className="cursor-pointer p-2 border border-slate-200 rounded-lg hover:bg-slate-50">
+                                        <ImageIcon size={20} className="text-slate-500"/>
+                                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleMatchingImageChange(index, 'kanan', e.target.files[0])} />
+                                    </label>
+                                </div>
+                                {match.preview_kanan && (
+                                    <div className="relative w-max">
+                                        <img src={match.preview_kanan} alt="Kanan" className="h-16 w-16 object-cover rounded border" />
+                                        <button onClick={() => removeMatchingImage(index, 'kanan')} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs">x</button>
+                                    </div>
+                                )}
+                            </div>
+
                             <button onClick={() => removeMatching(match.id)} className="w-10 h-10 flex shrink-0 items-center justify-center text-red-500 hover:bg-red-50 rounded-lg transition">
                                 <Trash2 size={18} />
                             </button>
@@ -404,14 +470,31 @@ const CreateQuestion = () => {
               )}
 
               {tipeSoal === 'MJ' && (
-                  <div className="flex gap-4 mt-4 text-xs text-slate-600 w-full min-w-0">
-                    <div className="flex-1 min-w-0 space-y-2 border-r border-slate-200 pr-2">
-                        {matchings.map(m => <div key={'l-'+m.id} className="p-2 bg-white rounded border border-slate-200 w-full wrap-break-word whitespace-pre-wrap">{m.kunci_kiri || '...'}</div>)}
-                    </div>
-                    <div className="flex-1 min-w-0 space-y-2 pl-2">
-                        {matchings.map(m => <div key={'r-'+m.id} className="p-2 bg-white rounded border border-slate-200 w-full wrap-break-word whitespace-pre-wrap">{m.kunci_kanan || '...'}</div>)}
-                    </div>
+                <div className="flex gap-4 mt-4 text-xs text-slate-600 w-full min-w-0">
+                  {/* Kolom Kiri (Soal) */}
+                  <div className="flex-1 min-w-0 space-y-2 border-r border-slate-200 pr-2">
+                    {matchings.map(m => (
+                      <div key={'l-'+m.id} className="p-2 bg-white rounded border border-slate-200 w-full wrap-break-word whitespace-pre-wrap flex flex-col items-center gap-1">
+                        {m.preview_kiri && (
+                          <img src={m.preview_kiri} alt="Preview Kiri" className="h-12 w-12 object-cover rounded border border-slate-100" />
+                        )}
+                        {m.kunci_kiri || (!m.preview_kiri && '...')}
+                      </div>
+                    ))}
                   </div>
+                  
+                  {/* Kolom Kanan (Jawaban) */}
+                  <div className="flex-1 min-w-0 space-y-2 pl-2">
+                    {matchings.map(m => (
+                      <div key={'r-'+m.id} className="p-2 bg-white rounded border border-slate-200 w-full wrap-break-word whitespace-pre-wrap flex flex-col items-center gap-1">
+                        {m.preview_kanan && (
+                          <img src={m.preview_kanan} alt="Preview Kanan" className="h-12 w-12 object-cover rounded border border-slate-100" />
+                        )}
+                        {m.kunci_kanan || (!m.preview_kanan && '...')}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>

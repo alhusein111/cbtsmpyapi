@@ -6,7 +6,7 @@ const getExams = async (req, res) => {
     try {
         const userRole = req.user?.role || 'admin';
         const userId = req.user?.id || 0;     
-        const { academic_year_id } = req.query; // 👇 Tangkap ID Tahun Ajaran dari Frontend
+        const { academic_year_id } = req.query; // Tangkap ID Tahun Ajaran dari Frontend
 
         let query = `
             SELECT 
@@ -23,7 +23,11 @@ const getExams = async (req, res) => {
                  WHERE JSON_CONTAINS(e.kelas_peserta, CAST(classes.id AS CHAR))) AS nama_kelas,
                 e.kelas_peserta,
                 u.nama_lengkap AS nama_guru,
-                e.tanggal_ujian, e.waktu_mulai, e.waktu_selesai, e.durasi, e.min_work_time, e.is_active
+                e.tanggal_ujian, e.waktu_mulai, e.waktu_selesai, e.durasi, e.min_work_time, e.is_active,
+                
+                -- 👇 PERBAIKAN: Hitung berdasarkan subject_id (Mata Pelajaran)
+                (SELECT COUNT(*) FROM questions WHERE questions.subject_id = e.subject_id) AS jumlah_soal
+
             FROM exams e
             JOIN academic_years ay ON e.academic_year_id = ay.id
             JOIN exam_types et ON e.exam_type_id = et.id
@@ -40,7 +44,7 @@ const getExams = async (req, res) => {
             params.push(userId);
         }
 
-        // 👇 Filter berdasarkan Tahun Ajaran Aktif
+        // Filter berdasarkan Tahun Ajaran Aktif
         if (academic_year_id) {
             whereClauses.push(`e.academic_year_id = ?`);
             params.push(academic_year_id);
