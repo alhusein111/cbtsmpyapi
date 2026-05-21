@@ -307,7 +307,7 @@ const BankSoalList = () => {
                       {indexOfFirstItem + index + 1}
                     </td>
                     <td className="p-4 align-top">
-                      <span className={`px-2.5 py-1 text-xs font-bold rounded-md 
+                      <span className={`inline-block whitespace-nowrap px-2.5 py-1 text-xs font-bold rounded-md 
                         ${q.tipe_soal === 'PG' ? 'bg-blue-50 text-blue-700' : 
                           q.tipe_soal === 'BS' ? 'bg-emerald-50 text-emerald-700' : 
                           'bg-amber-50 text-amber-700'}`}>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, BookOpen, Edit, Calendar, Clock, Download, X, Trash2, CheckCircle2, XCircle, Search, ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Filter, FileText, Layers } from 'lucide-react';
 import api from '../../api/axiosConfig'; 
 import { notifySuccess, notifyError, notifyWarning, confirmDelete } from '../../utils/alertHelper';
+import { exportSoalKeExcel } from '../../utils/excelTemplates';
 
 const ManajemenUjian = () => {
   const navigate = useNavigate();
@@ -106,9 +107,33 @@ const ManajemenUjian = () => {
     }
   };
 
-  const handleExportExcel = (examId) => {
-    const backendUrl = import.meta.env.VITE_API_URL;
-    window.open(`${backendUrl}/api/exams/export/${examId}`, '_blank'); 
+  // Ubah fungsi handleExportExcel lama menjadi seperti ini:
+  const handleExportExcel = async (exam) => {
+    try {
+      setLoading(true);
+      // Panggil API untuk mengambil seluruh daftar soal berdasarkan ID Ujian
+      const response = await api.get(`/api/exams/${exam.id}/questions`);
+      
+      if (response.data.success) {
+        const listSoal = response.data.data || [];
+        
+        if (listSoal.length === 0) {
+          notifyWarning(`Belum ada soal yang di-input untuk mata pelajaran ${exam.nama_mapel}`);
+          return;
+        }
+
+        // Jalankan fungsi export template dengan data dinamis
+        exportSoalKeExcel(exam.nama_mapel || 'Mata Pelajaran', listSoal);
+        notifySuccess(`Berhasil mengexport ${listSoal.length} soal untuk backup!`);
+      } else {
+        notifyError("Gagal memuat data soal dari server.");
+      }
+    } catch (error) {
+      console.error('Gagal export soal:', error);
+      notifyError('Terjadi kesalahan: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCheckboxChange = (e, classId) => {
@@ -562,18 +587,18 @@ const ManajemenUjian = () => {
                             <BookOpen size={16} /> Kelola Soal
                           </button>
                           {finalRole === 'admin' && (
-                            <>
-                              <button onClick={() => handleEditClick(exam)} className="p-1.5 border border-slate-200 text-blue-500 hover:bg-blue-50 rounded transition" title="Edit Ujian">
-                                <Edit size={16} />
-                              </button>
-                              <button onClick={() => handleDeleteExam(exam.id)} className="p-1.5 border border-slate-200 text-red-500 hover:bg-red-50 rounded transition" title="Hapus Ujian">
-                                <Trash2 size={16} />
-                              </button>
-                              <button onClick={() => handleExportExcel(exam.id)} className="p-1.5 border border-slate-200 text-slate-500 hover:bg-slate-100 rounded transition" title="Export Nilai">
-                                <Download size={16} />
-                              </button>
-                            </>
-                          )}
+                              <>
+                                <button onClick={() => handleEditClick(exam)} className="p-1.5 border border-slate-200 text-blue-500 hover:bg-blue-50 rounded transition" title="Edit Ujian">
+                                  <Edit size={16} />
+                                </button>
+                                <button onClick={() => handleDeleteExam(exam.id)} className="p-1.5 border border-slate-200 text-red-500 hover:bg-red-50 rounded transition" title="Hapus Ujian">
+                                  <Trash2 size={16} />
+                                </button>
+                                <button onClick={() => handleExportExcel(exam)} className="p-1.5 border border-slate-200 text-slate-500 hover:bg-slate-100 rounded transition" title="Export Soal">
+                                  <Download size={16} />
+                                </button>
+                              </>
+                            )}
                         </div>
                       </td>
                     </tr>

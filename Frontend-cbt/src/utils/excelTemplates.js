@@ -77,3 +77,87 @@ export const downloadTemplateSoal = (namaMapel) => {
     XLSX.utils.book_append_sheet(wb, ws, "Template_Soal");
     XLSX.writeFile(wb, `Template_Soal_${namaMapel.replace(/\s+/g, '_')}.xlsx`); 
 };
+
+
+// 🔥 FILTER & MAPPING PINTAR UNTUK EXPORT SOAL BACKUP
+
+export const exportSoalKeExcel = (namaMapel, listSoal) => {
+    
+    // 1. Fungsi Helper untuk membersihkan tag HTML
+    const cleanHtmlText = (htmlString) => {
+        if (!htmlString) return '';
+        try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlString, 'text/html');
+            return (doc.body.textContent || "").trim();
+        } catch (e) {
+            return htmlString.replace(/<\/?[^>]+(>|$)/g, "").replace(/&nbsp;/g, " ").trim();
+        }
+    };
+
+    // 2. Mapping data sesuai respon Array dari Backend
+    const data = listSoal.map(q => {
+        const tipe = String(q.tipe_soal || 'PG').toUpperCase();
+        
+        // Siapkan variabel kosong
+        let opsiA = '', opsiB = '', opsiC = '', opsiD = '';
+        let imgA = '', imgB = '', imgC = '', imgD = '';
+        let kunciJawaban = '';
+        let kunciMJ = '';
+
+        // 🔥 LOGIKA UNTUK PG & BS (Mengekstrak dari array q.options)
+        if ((tipe === 'PG' || tipe === 'BS') && Array.isArray(q.options)) {
+            const abjad = ['A', 'B', 'C', 'D'];
+            
+            q.options.forEach((opt, index) => {
+                const teksBersih = cleanHtmlText(opt.teks_opsi);
+                const gambarOpsi = opt.gambar_opsi || '';
+
+                if (index === 0) { opsiA = teksBersih; imgA = gambarOpsi; }
+                else if (index === 1) { opsiB = teksBersih; imgB = gambarOpsi; }
+                else if (index === 2) { opsiC = teksBersih; imgC = gambarOpsi; }
+                else if (index === 3) { opsiD = teksBersih; imgD = gambarOpsi; }
+                
+                // Cari Kunci Jawaban (Mencari opsi yang is_correct nya 1)
+                if (opt.is_correct === 1 || opt.is_correct === true || String(opt.is_correct) === '1') {
+                    kunciJawaban = abjad[index]; // Akan menghasilkan A, B, C, atau D
+                }
+            });
+        }
+
+        // 🔥 LOGIKA UNTUK MJ (Mengekstrak dari array q.matchings)
+        if (tipe === 'MJ' && Array.isArray(q.matchings)) {
+            kunciMJ = q.matchings.map(m => {
+                const kiri = cleanHtmlText(m.kunci_kiri);
+                const kanan = cleanHtmlText(m.kunci_kanan);
+                return `${kiri}:${kanan}`;
+            }).join('|');
+        }
+
+        return {
+            'Mata Pelajaran': namaMapel, 
+            'Tipe Soal': tipe, 
+            'Teks Soal': cleanHtmlText(q.teks_soal), 
+            'Bobot': q.bobot || 1, 
+            'Gambar Soal': q.gambar_soal || '', 
+            'Opsi A': opsiA, 
+            'Gambar Opsi A': imgA, 
+            'Opsi B': opsiB, 
+            'Gambar Opsi B': imgB, 
+            'Opsi C': opsiC, 
+            'Gambar Opsi C': imgC, 
+            'Opsi D': opsiD, 
+            'Gambar Opsi D': imgD, 
+            'Kunci Jawaban': kunciJawaban, 
+            'Kunci Menjodohkan': kunciMJ
+        };
+    });
+
+    // 3. Proses generate berkas Excel
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template_Soal"); 
+    
+    const cleanMapelName = String(namaMapel).replace(/\s+/g, '_');
+    XLSX.writeFile(wb, `Backup_Soal_${cleanMapelName}.xlsx`);
+};
